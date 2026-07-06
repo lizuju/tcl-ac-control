@@ -47,7 +47,7 @@ node install-windows.mjs
 
 Windows 任务计划程序按 Windows 系统时区触发。如果要让 `09:30` 和 `17:50` 表示北京时间，请把 Windows 时区设为中国时间。
 
-安装脚本会同时安装看门狗。看门狗每 5 分钟检查一次本地面板和定时任务；如果你在面板里手动关闭定时任务，它不会把定时任务强行重新开启。
+安装脚本会同时安装看门狗。看门狗每 30 分钟检查一次本地面板和定时任务；如果你在面板里手动关闭定时任务，它不会把定时任务强行重新开启。
 
 4. 打开本地面板：
 
@@ -118,7 +118,7 @@ node install-windows.mjs
 
 Windows Task Scheduler triggers by the Windows system time zone. Keep the Windows time zone set to China time for `09:30` and `17:50` to mean Beijing time.
 
-The installer also installs a watchdog. It checks the local panel and scheduled jobs every 5 minutes. If you manually disable the schedule from the panel, the watchdog will not force it back on.
+The installer also installs a watchdog. It checks the local panel and scheduled jobs every 30 minutes. If you manually disable the schedule from the panel, the watchdog will not force it back on.
 
 4. Open the local panel:
 

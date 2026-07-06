@@ -152,7 +152,7 @@ function watchdogPlist() {
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>300</integer>
+  <integer>1800</integer>
   <key>StandardOutPath</key>
   <string>${xml(path.join(logsDir, "watchdog.log"))}</string>
   <key>StandardErrorPath</key>
@@ -213,5 +213,5 @@ await loadAgent(watchdogLabel, watchdogPath);
 console.log(`Installed ${onPath} at ${onTime}`);
 console.log(`Installed ${offPath} at ${offTime}`);
 console.log(`Installed ${panelPath}`);
-console.log(`Installed ${watchdogPath} every 5 minutes`);
+console.log(`Installed ${watchdogPath} every 30 minutes`);
 console.log("Panel URL: http://127.0.0.1:3033/");

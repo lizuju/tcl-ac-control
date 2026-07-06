@@ -175,7 +175,7 @@ export async function installWindowsWatchdogTask() {
     "/SC",
     "MINUTE",
     "/MO",
-    "5",
+    "30",
     "/TR",
     quotedTaskPath("watchdog"),
     "/F",
