@@ -198,8 +198,9 @@ function html() {
     .unitTempRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; grid-column: 1 / -1; }
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
-    .unitOn { background: #177245; }
-    .unitOff { background: #b42318; }
+    .unitToggle { grid-column: 1 / -1; }
+    .unitToggleOn { background: #177245; }
+    .unitToggleOff { background: #b42318; }
     .unitTempSet { background: #175cd3; }
     .unit.onUnit { border-color: #86efac; }
     .unit.offUnit { border-color: #fca5a5; }
@@ -351,6 +352,9 @@ function html() {
         const temp = String(Math.round(Number.parseFloat(unit.temperature)));
         const badgeTemperature = unit.temperature.replace(/\s*°C$/, "°C");
         const options = temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
+        const toggleAction = unit.on ? "off" : "on";
+        const toggleClass = unit.on ? "unitToggleOff" : "unitToggleOn";
+        const toggleLabel = unit.on ? "关闭" : "打开";
         return '<div class="unit ' + unitClass + '">' +
           '<div class="unitTop">' +
             '<div class="unitBadge">' +
@@ -362,8 +366,7 @@ function html() {
             '</div>' +
           '</div>' +
           '<div class="unitControls" data-unit="' + escapeHtml(unit.name) + '">' +
-            '<button class="unitOn" type="button">打开</button>' +
-            '<button class="unitOff" type="button">关闭</button>' +
+            '<button class="unitToggle ' + toggleClass + '" type="button" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
             '<div class="unitTempRow">' +
               '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
               '<button class="unitTempSet" type="button">设置</button>' +
@@ -446,10 +449,8 @@ function html() {
       const controls = event.target.closest(".unitControls");
       if (!controls) return;
       const unit = controls.dataset.unit;
-      if (event.target.classList.contains("unitOn")) {
-        run("unit/" + encodeURIComponent(unit) + "/on");
-      } else if (event.target.classList.contains("unitOff")) {
-        run("unit/" + encodeURIComponent(unit) + "/off");
+      if (event.target.classList.contains("unitToggle")) {
+        run("unit/" + encodeURIComponent(unit) + "/" + event.target.dataset.action);
       } else if (event.target.classList.contains("unitTempSet")) {
         const value = controls.querySelector(".unitTemp").value;
         run("unit/" + encodeURIComponent(unit) + "/temp?value=" + encodeURIComponent(value));
