@@ -20,6 +20,7 @@ export const jobs = {
   off: { label: "com.company-ac.off", defaultTime: "17:50" },
 };
 export const panelLabel = "com.company-ac.panel";
+export const watchdogLabel = "com.company-ac.watchdog";
 
 export function xml(value) {
   return value

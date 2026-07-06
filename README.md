@@ -18,6 +18,7 @@
 - 支持可视化定时任务：可以在面板里直接调整打开时间、关闭时间，并开启或关闭定时任务。
 - 自动跳过非工作日：定时开启会跳过周末和中国节假日，节假日按年份读取，适配不同年份的放假安排。
 - 关闭更稳妥：关闭动作会读取状态做确认，失败时会自动重试一次。
+- 支持看门狗：定期检查本地面板和定时任务，异常掉线时自动拉起。
 - 支持 macOS 和 Windows：macOS 使用 LaunchAgent，Windows 使用任务计划程序。
 
 ### 快速开始
@@ -46,6 +47,8 @@ node install-windows.mjs
 
 Windows 任务计划程序按 Windows 系统时区触发。如果要让 `09:30` 和 `17:50` 表示北京时间，请把 Windows 时区设为中国时间。
 
+安装脚本会同时安装看门狗。看门狗每 5 分钟检查一次本地面板和定时任务；如果你在面板里手动关闭定时任务，它不会把定时任务强行重新开启。
+
 4. 打开本地面板：
 
 ```text
@@ -71,6 +74,7 @@ node ac-control.mjs unit-temp VAV_01 25
 - 不要提交 `.env`，它包含现场地址、账号和点位配置。
 - 不要把真实密码写入源码。macOS 使用 Keychain 保存密码；Windows 使用本地 ignored 的 `.env` 或进程环境变量。
 - 全部空调的 `off`、`on`、`temp` 命令会在执行后校验所有配置的 VAV 状态，失败时自动重试一次。
+- 看门狗只负责恢复本地面板和调度任务，不会主动执行打开或关闭空调。
 
 ## English Version
 
@@ -85,6 +89,7 @@ This project provides a local web panel and scheduler for a Niagara/BMS-based AC
 - Visual schedule management: open/close times and schedule enablement can be adjusted directly from the panel.
 - Workday-aware scheduling: scheduled opening skips weekends and China public holidays, with holiday data handled by year.
 - Safer shutdown: close operations verify the result and retry once if needed.
+- Watchdog support: the local panel and scheduler are checked periodically and recovered when they drop unexpectedly.
 - macOS and Windows support: macOS uses LaunchAgent, and Windows uses Task Scheduler.
 
 ### Quick Start
@@ -113,6 +118,8 @@ node install-windows.mjs
 
 Windows Task Scheduler triggers by the Windows system time zone. Keep the Windows time zone set to China time for `09:30` and `17:50` to mean Beijing time.
 
+The installer also installs a watchdog. It checks the local panel and scheduled jobs every 5 minutes. If you manually disable the schedule from the panel, the watchdog will not force it back on.
+
 4. Open the local panel:
 
 ```text
@@ -138,3 +145,4 @@ Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses 
 - Do not commit `.env`; it contains site-specific URLs, accounts, and point configuration.
 - Do not store real passwords in source files. macOS uses Keychain; Windows uses the local ignored `.env` file or process environment.
 - Whole-system `off`, `on`, and `temp` commands verify all configured VAV units after applying changes and retry once if needed.
+- The watchdog only restores the local panel and scheduler; it does not actively turn AC units on or off.

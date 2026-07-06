@@ -1,6 +1,7 @@
 import { requiredEnv } from "./env.mjs";
 import {
   installWindowsPanelTask,
+  installWindowsWatchdogTask,
   readWindowsSchedule,
   runWindowsPanelTask,
   setWindowsScheduleEnabled,
@@ -19,9 +20,11 @@ const current = await readWindowsSchedule();
 const schedule = await writeWindowsSchedule(current.on, current.off);
 await setWindowsScheduleEnabled(true);
 await installWindowsPanelTask();
+await installWindowsWatchdogTask();
 await runWindowsPanelTask().catch(() => {});
 
 console.log(`Installed Windows task ${taskNames.on} at ${schedule.on}`);
 console.log(`Installed Windows task ${taskNames.off} at ${schedule.off}`);
 console.log(`Installed Windows task ${taskNames.panel} at logon`);
+console.log(`Installed Windows task ${taskNames.watchdog} every 5 minutes`);
 console.log("Panel URL: http://127.0.0.1:3033/");

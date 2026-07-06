@@ -13,10 +13,12 @@ import {
 const taskDir = path.join(here, "out", "windows-tasks");
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
+const watchdogScriptPath = path.join(here, "watchdog.mjs");
 const taskNames = {
   on: "TCLAC-On",
   off: "TCLAC-Off",
   panel: "TCLAC-Panel",
+  watchdog: "TCLAC-Watchdog",
 };
 
 function ensureWindows() {
@@ -66,6 +68,10 @@ async function queryTaskXml(name) {
   } catch {
     return "";
   }
+}
+
+export async function readWindowsTask(name) {
+  return { exists: Boolean(await queryTaskXml(name)) };
 }
 
 function readXmlTag(xml, tag) {
@@ -158,6 +164,22 @@ export async function installWindowsPanelTask() {
 
 export async function runWindowsPanelTask() {
   await runSchtasks(["/Run", "/TN", taskNames.panel]);
+}
+
+export async function installWindowsWatchdogTask() {
+  await writeTaskScript("watchdog", watchdogScriptPath, []);
+  await runSchtasks([
+    "/Create",
+    "/TN",
+    taskNames.watchdog,
+    "/SC",
+    "MINUTE",
+    "/MO",
+    "5",
+    "/TR",
+    quotedTaskPath("watchdog"),
+    "/F",
+  ]);
 }
 
 export { taskNames };

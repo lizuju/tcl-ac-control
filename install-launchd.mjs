@@ -14,6 +14,7 @@ import {
   plistPathFor,
   readJobTime,
   sh,
+  watchdogLabel,
   xml,
 } from "./launchd.mjs";
 
@@ -21,6 +22,7 @@ const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
+const watchdogScriptPath = path.join(here, "watchdog.mjs");
 
 if (process.platform !== "darwin") {
   throw new Error("install-launchd.mjs is macOS only; use install-windows.mjs on Windows");
@@ -133,6 +135,33 @@ function panelPlist() {
 `;
 }
 
+function watchdogPlist() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xml(watchdogLabel)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${xml(nodePath)}</string>
+    <string>${xml(watchdogScriptPath)}</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${xml(here)}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>StandardOutPath</key>
+  <string>${xml(path.join(logsDir, "watchdog.log"))}</string>
+  <key>StandardErrorPath</key>
+  <string>${xml(path.join(logsDir, "watchdog.err.log"))}</string>
+</dict>
+</plist>
+`;
+}
+
 async function writeScheduleJob(action, time) {
   const job = jobs[action];
   const { hour, minute } = parseTime(time);
@@ -144,6 +173,12 @@ async function writeScheduleJob(action, time) {
 async function writePanelJob() {
   const plistPath = plistPathFor(panelLabel);
   await fs.writeFile(plistPath, panelPlist());
+  return plistPath;
+}
+
+async function writeWatchdogJob() {
+  const plistPath = plistPathFor(watchdogLabel);
+  await fs.writeFile(plistPath, watchdogPlist());
   return plistPath;
 }
 
@@ -168,12 +203,15 @@ const offTime = await readJobTime("off");
 const onPath = await writeScheduleJob("on", onTime);
 const offPath = await writeScheduleJob("off", offTime);
 const panelPath = await writePanelJob();
+const watchdogPath = await writeWatchdogJob();
 
 await loadAgent(jobs.on.label, onPath);
 await loadAgent(jobs.off.label, offPath);
 await loadAgent(panelLabel, panelPath);
+await loadAgent(watchdogLabel, watchdogPath);
 
 console.log(`Installed ${onPath} at ${onTime}`);
 console.log(`Installed ${offPath} at ${offTime}`);
 console.log(`Installed ${panelPath}`);
+console.log(`Installed ${watchdogPath} every 5 minutes`);
 console.log("Panel URL: http://127.0.0.1:3033/");
