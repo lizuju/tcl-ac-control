@@ -162,13 +162,18 @@ function html() {
     .statePill.onState { background: #dcfce7; color: #166534; }
     .statePill.offState { background: #fee2e2; color: #991b1b; }
     .dot { width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
-    .unitGrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
-    .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 4px; }
-    .unitTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-    .unitName { font-size: 13px; font-weight: 700; color: #172026; }
-    .unitMeta { font-size: 13px; color: #475569; }
-    .unitControls { display: grid; grid-template-columns: .7fr .7fr 1.1fr .8fr; gap: 6px; align-items: center; margin-top: 6px; }
-    .unitControls button, .unitControls select { height: 36px; font-size: 13px; border-radius: 8px; }
+    .unitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 8px; }
+    .unitTop { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: center; }
+    .unitBadge { display: grid; place-items: center; width: 46px; min-height: 50px; border: 1px solid #60a5fa; border-radius: 6px; background: #eff6ff; }
+    .unitTempValue { font-size: 13px; font-weight: 800; color: #0f172a; line-height: 1.1; }
+    .unitIcon { width: 22px; height: 18px; border-radius: 4px; background: #172026; box-shadow: inset 0 -4px 0 rgba(255,255,255,.15); }
+    .unitIcon::after { content: ""; display: block; width: 26px; height: 8px; margin: 18px auto 0; border-radius: 0 0 6px 6px; background: #22c55e; }
+    .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
+    .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
+    .unitTempRow { display: grid; grid-template-columns: minmax(0, 1fr) .72fr; gap: 6px; grid-column: 1 / -1; }
+    .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
     .unitOn { background: #177245; }
     .unitOff { background: #b42318; }
@@ -201,6 +206,7 @@ function html() {
       .layout { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
+      .unitGrid { grid-template-columns: 1fr; }
       .scheduleGrid { grid-template-columns: 1fr; }
     }
     @media (prefers-color-scheme: dark) {
@@ -209,6 +215,8 @@ function html() {
       #scheduleInfo { background: #334155; color: #f8fafc; }
       select, input { background: #1f2937; color: #f3f4f6; border-color: #475569; }
       .unit { background: #1f2937; border-color: #475569; }
+      .unitBadge { background: #172033; border-color: #3b82f6; }
+      .unitTempValue { color: #f8fafc; }
       .unitName { color: #f3f4f6; }
       .unitMeta { color: #cbd5e1; }
       .scheduleDetail { color: #cbd5e1; }
@@ -314,16 +322,22 @@ function html() {
         const options = temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
         return '<div class="unit ' + unitClass + '">' +
           '<div class="unitTop">' +
+            '<div class="unitBadge">' +
+              '<div class="unitTempValue">' + escapeHtml(unit.temperature) + '</div>' +
+              '<div class="unitIcon"></div>' +
+            '</div>' +
             '<div>' +
               '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
-              '<div class="unitMeta">' + escapeHtml(unit.mode) + ' · ' + escapeHtml(unit.temperature) + '</div>' +
+              '<div class="unitMeta">' + escapeHtml(unit.mode) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="unitControls" data-unit="' + escapeHtml(unit.name) + '">' +
             '<button class="unitOn" type="button">打开</button>' +
             '<button class="unitOff" type="button">关闭</button>' +
-            '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
-            '<button class="unitTempSet" type="button">设置</button>' +
+            '<div class="unitTempRow">' +
+              '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
+              '<button class="unitTempSet" type="button">设置</button>' +
+            '</div>' +
           '</div>' +
           '</div>';
       }).join("");
