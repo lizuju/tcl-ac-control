@@ -177,7 +177,9 @@ function html() {
     .unit.offUnit { border-color: #fca5a5; }
     .schedule { margin-top: 10px; display: grid; gap: 12px; }
     .scheduleHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .scheduleTitle { display: inline-flex; align-items: center; gap: 8px; }
     h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    #scheduleInfo { width: 22px; height: 22px; border-radius: 999px; padding: 0; font-size: 14px; line-height: 22px; background: #e2e8f0; color: #334155; }
     .scheduleGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; }
     label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: #344054; }
     select, input { height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 14px; font-size: 20px; background: white; color: #172026; box-sizing: border-box; min-width: 0; }
@@ -204,6 +206,7 @@ function html() {
     @media (prefers-color-scheme: dark) {
       body { background: #111418; color: #f3f4f6; }
       label { color: #cbd5e1; }
+      #scheduleInfo { background: #334155; color: #f8fafc; }
       select, input { background: #1f2937; color: #f3f4f6; border-color: #475569; }
       .unit { background: #1f2937; border-color: #475569; }
       .unitName { color: #f3f4f6; }
@@ -250,7 +253,10 @@ function html() {
         </div>
         <div class="schedule">
           <div class="scheduleHeader">
-            <h2>定时任务</h2>
+            <div class="scheduleTitle">
+              <h2>定时任务</h2>
+              <button id="scheduleInfo" type="button" title="查看定时规则">!</button>
+            </div>
             <span id="scheduleStatus"><span class="dot"></span>运行中</span>
           </div>
           <div class="scheduleGrid">
@@ -279,7 +285,9 @@ function html() {
     const scheduleToggle = document.querySelector("#scheduleToggle");
     const scheduleStatus = document.querySelector("#scheduleStatus");
     const scheduleDetail = document.querySelector("#scheduleDetail");
+    const scheduleInfo = document.querySelector("#scheduleInfo");
     const temps = Array.from({ length: 13 }, (_, index) => String(index + 18));
+    let showScheduleInfo = false;
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -338,6 +346,8 @@ function html() {
       if (state === "error" && onJob && offJob) {
         const label = (job) => (job.enabled ? "已启用" : "已关闭") + " / " + (job.loaded ? "已加载" : "未加载");
         scheduleDetail.textContent = "打开：" + label(onJob) + "；关闭：" + label(offJob);
+      } else if (showScheduleInfo) {
+        scheduleDetail.textContent = "定时开启只在工作日执行，周末和中国节假日会自动跳过；定时关闭照常执行。";
       } else {
         scheduleDetail.textContent = "";
       }
@@ -381,6 +391,10 @@ function html() {
       run("temp?value=" + encodeURIComponent(value));
     });
     document.querySelector("#refreshStatus").addEventListener("click", refreshAcStatus);
+    scheduleInfo.addEventListener("click", async () => {
+      showScheduleInfo = !showScheduleInfo;
+      await refreshSchedule();
+    });
     unitGrid.addEventListener("click", (event) => {
       const controls = event.target.closest(".unitControls");
       if (!controls) return;
