@@ -164,8 +164,15 @@ function html() {
     .dot { width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
     .unitGrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 4px; }
+    .unitTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
     .unitName { font-size: 13px; font-weight: 700; color: #172026; }
     .unitMeta { font-size: 13px; color: #475569; }
+    .unitControls { display: grid; grid-template-columns: .7fr .7fr 1.1fr .8fr; gap: 6px; align-items: center; margin-top: 6px; }
+    .unitControls button, .unitControls select { height: 36px; font-size: 13px; border-radius: 8px; }
+    .unitControls select { padding: 0 8px; }
+    .unitOn { background: #177245; }
+    .unitOff { background: #b42318; }
+    .unitTempSet { background: #175cd3; }
     .unit.onUnit { border-color: #86efac; }
     .unit.offUnit { border-color: #fca5a5; }
     .schedule { margin-top: 10px; display: grid; gap: 12px; }
@@ -264,7 +271,6 @@ function html() {
   </main>
   <script>
     const status = document.querySelector("#status");
-    const buttons = [...document.querySelectorAll("button")];
     const stateSummary = document.querySelector("#stateSummary");
     const unitGrid = document.querySelector("#unitGrid");
     const temperatureSelect = document.querySelector("#temperature");
@@ -273,6 +279,7 @@ function html() {
     const scheduleToggle = document.querySelector("#scheduleToggle");
     const scheduleStatus = document.querySelector("#scheduleStatus");
     const scheduleDetail = document.querySelector("#scheduleDetail");
+    const temps = Array.from({ length: 13 }, (_, index) => String(index + 18));
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -295,9 +302,21 @@ function html() {
         '<span>' + data.activeUnits + '/' + data.totalUnits + ' 台占用</span>';
       unitGrid.innerHTML = data.units.map((unit) => {
         const unitClass = unit.off ? "offUnit" : unit.on ? "onUnit" : "";
+        const temp = String(Math.round(Number.parseFloat(unit.temperature)));
+        const options = temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
         return '<div class="unit ' + unitClass + '">' +
-          '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
-          '<div class="unitMeta">' + escapeHtml(unit.mode) + ' · ' + escapeHtml(unit.temperature) + '</div>' +
+          '<div class="unitTop">' +
+            '<div>' +
+              '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
+              '<div class="unitMeta">' + escapeHtml(unit.mode) + ' · ' + escapeHtml(unit.temperature) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="unitControls" data-unit="' + escapeHtml(unit.name) + '">' +
+            '<button class="unitOn" type="button">打开</button>' +
+            '<button class="unitOff" type="button">关闭</button>' +
+            '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
+            '<button class="unitTempSet" type="button">设置</button>' +
+          '</div>' +
           '</div>';
       }).join("");
       const temp = String(Math.round(Number.parseFloat(data.temperature)));
@@ -341,7 +360,7 @@ function html() {
     }
 
     async function run(action) {
-      buttons.forEach((button) => button.disabled = true);
+      document.querySelectorAll("button").forEach((button) => button.disabled = true);
       status.textContent = "执行中...";
       try {
         const response = await fetch("/api/" + action, { method: "POST" });
@@ -351,7 +370,7 @@ function html() {
         status.textContent = error.message;
       } finally {
         await refreshAcStatus();
-        buttons.forEach((button) => button.disabled = false);
+        document.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
     }
 
@@ -362,8 +381,21 @@ function html() {
       run("temp?value=" + encodeURIComponent(value));
     });
     document.querySelector("#refreshStatus").addEventListener("click", refreshAcStatus);
+    unitGrid.addEventListener("click", (event) => {
+      const controls = event.target.closest(".unitControls");
+      if (!controls) return;
+      const unit = controls.dataset.unit;
+      if (event.target.classList.contains("unitOn")) {
+        run("unit/" + encodeURIComponent(unit) + "/on");
+      } else if (event.target.classList.contains("unitOff")) {
+        run("unit/" + encodeURIComponent(unit) + "/off");
+      } else if (event.target.classList.contains("unitTempSet")) {
+        const value = controls.querySelector(".unitTemp").value;
+        run("unit/" + encodeURIComponent(unit) + "/temp?value=" + encodeURIComponent(value));
+      }
+    });
     document.querySelector("#scheduleSave").addEventListener("click", async () => {
-      buttons.forEach((button) => button.disabled = true);
+      document.querySelectorAll("button").forEach((button) => button.disabled = true);
       status.textContent = "保存中...";
       const on = scheduleOn.value;
       const off = scheduleOff.value;
@@ -375,11 +407,11 @@ function html() {
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        buttons.forEach((button) => button.disabled = false);
+        document.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
     });
     scheduleToggle.addEventListener("click", async () => {
-      buttons.forEach((button) => button.disabled = true);
+      document.querySelectorAll("button").forEach((button) => button.disabled = true);
       const next = scheduleToggle.dataset.enabled !== "true";
       status.textContent = "保存中...";
       try {
@@ -390,7 +422,7 @@ function html() {
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        buttons.forEach((button) => button.disabled = false);
+        document.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
     });
 
@@ -420,7 +452,23 @@ async function control(action, value) {
   if (action === "on") args.push("--force");
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
     cwd: here,
-    timeout: 120000,
+    timeout: 180000,
+    maxBuffer: 1024 * 1024,
+  });
+  return (stdout + stderr).trim();
+}
+
+async function controlUnit(unit, action, value) {
+  const command = action === "temp" ? "unit-temp" : `unit-${action}`;
+  const args = [scriptPath, command, unit];
+  if (action === "temp") {
+    const temp = Number(value);
+    if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
+    args.push(String(temp));
+  }
+  const { stdout, stderr } = await execFileAsync(process.execPath, args, {
+    cwd: here,
+    timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
   return (stdout + stderr).trim();
@@ -490,6 +538,20 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && match) {
     try {
       const output = await updateControl(() => control(match[1], url.searchParams.get("value")));
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      res.end(output || "完成");
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.stdout || error.stderr || error.message);
+    }
+    return;
+  }
+
+  const unitMatch = /^\/api\/unit\/([^/]+)\/(on|off|temp)$/.exec(url.pathname);
+  if (req.method === "POST" && unitMatch) {
+    try {
+      const unit = decodeURIComponent(unitMatch[1]);
+      const output = await updateControl(() => controlUnit(unit, unitMatch[2], url.searchParams.get("value")));
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       res.end(output || "完成");
     } catch (error) {

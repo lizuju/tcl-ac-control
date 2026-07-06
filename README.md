@@ -31,9 +31,13 @@ node ac-control.mjs status
 node ac-control.mjs on
 node ac-control.mjs off
 node ac-control.mjs temp 25
+node ac-control.mjs unit-on VAV_01
+node ac-control.mjs unit-off VAV_01
+node ac-control.mjs unit-temp VAV_01 25
 ```
 
 Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses `--force`.
+Whole-system commands still release and overwrite all configured unit-level overrides.
 
 ## Safety Notes
 

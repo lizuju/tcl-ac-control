@@ -306,6 +306,12 @@ function hasAction(component, name) {
   return component.s?.some((item) => item.n === name && item.t?.endsWith("Action"));
 }
 
+function findVav(name) {
+  const vav = vavs.find((item) => item.name === name);
+  if (!vav) throw new Error(`Unknown unit: ${name}`);
+  return vav;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -380,10 +386,10 @@ async function setTemp(value, handle) {
   return invokeAction(handle, "set", encodeTempValue(value));
 }
 
-async function releaseForcedSettings() {
+async function releaseForcedSettings(targetVavs = vavs) {
   const released = [];
 
-  for (const vav of vavs) {
+  for (const vav of targetVavs) {
     for (const point of forceReleasePoints) {
       const component = (await resolveOrd(`${vav.ord}/${point}`)).o;
       if (!isForced(component)) continue;
@@ -395,22 +401,30 @@ async function releaseForcedSettings() {
     }
   }
 
-  log(`Checked individual overrides: ${vavs.length} units, ${vavs.length * forceReleasePoints.length} points`);
+  log(`Checked individual overrides: ${targetVavs.length} units, ${targetVavs.length * forceReleasePoints.length} points`);
   if (released.length) log(`Released forced settings: ${released.join(", ")}`);
+}
+
+async function setVavMode(vav, action) {
+  const component = (await resolveOrd(`${vav.ord}/${vavModePoint}`)).o;
+  await setMode(action, component.h);
 }
 
 async function setAllVavModes(action) {
   for (const vav of vavs) {
-    const component = (await resolveOrd(`${vav.ord}/${vavModePoint}`)).o;
-    await setMode(action, component.h);
+    await setVavMode(vav, action);
   }
   log(`Set individual modes: ${vavs.length} units -> ${values[action].display}`);
 }
 
+async function setVavTemp(vav, value) {
+  const component = (await resolveOrd(`${vav.ord}/${vavTempPoint}`)).o;
+  await setTemp(value, component.h);
+}
+
 async function setAllVavTemps(value) {
   for (const vav of vavs) {
-    const component = (await resolveOrd(`${vav.ord}/${vavTempPoint}`)).o;
-    await setTemp(value, component.h);
+    await setVavTemp(vav, value);
   }
   log(`Set individual temperatures: ${vavs.length} units -> ${value.toFixed(1)} °C`);
 }
@@ -465,6 +479,10 @@ function summarizeStatus(status) {
   return `mode=${status.mode}, temperature=${status.temperature}, occupied=${status.activeUnits}/${status.totalUnits}, units=[${units}]`;
 }
 
+function summarizeUnitStatus(unit) {
+  return `${unit.name}: mode=${unit.mode}, temperature=${unit.temperature}`;
+}
+
 async function waitForStatus(predicate, label) {
   const timeoutAt = Date.now() + verifyTimeoutMs;
   let status = await readSystemStatus();
@@ -475,6 +493,19 @@ async function waitForStatus(predicate, label) {
   }
 
   log(`${label}: ${summarizeStatus(status)}`);
+  return status;
+}
+
+async function waitForUnitStatus(vav, predicate, label) {
+  const timeoutAt = Date.now() + verifyTimeoutMs;
+  let status = await readVavStatus(vav);
+
+  while (!predicate(status) && Date.now() < timeoutAt) {
+    await sleep(verifyIntervalMs);
+    status = await readVavStatus(vav);
+  }
+
+  log(`${label}: ${summarizeUnitStatus(status)}`);
   return status;
 }
 
@@ -543,6 +574,45 @@ async function setTemperatureWithVerification(value) {
   if (!success) throw new Error(`temperature is not ${value.toFixed(1)} °C after second set: ${summarizeStatus(status)}`);
 }
 
+async function applyUnitMode(vav, action) {
+  await releaseForcedSettings([vav]);
+  await setVavMode(vav, action);
+  log(`Set ${vav.name} mode -> ${values[action].display}`);
+}
+
+async function setUnitModeWithVerification(name, action) {
+  const vav = findVav(name);
+  await applyUnitMode(vav, action);
+  let status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification check`);
+  if (!status[action]) {
+    log(`${vav.name} mode verification failed, retrying once`);
+    await applyUnitMode(vav, action);
+    status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification retry check`);
+  }
+  log(`${vav.name} mode verification: ${status[action] ? "success" : "failed"}`);
+  if (!status[action]) throw new Error(`${vav.name} mode is not ${values[action].display} after second set: ${summarizeUnitStatus(status)}`);
+}
+
+async function applyUnitTemperature(vav, value) {
+  await releaseForcedSettings([vav]);
+  await setVavTemp(vav, value);
+  log(`Set ${vav.name} temperature -> ${value.toFixed(1)} °C`);
+}
+
+async function setUnitTemperatureWithVerification(name, value) {
+  const vav = findVav(name);
+  await applyUnitTemperature(vav, value);
+  let status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification check`);
+  if (!temperatureMatches(status.temperature, value)) {
+    log(`${vav.name} temperature verification failed, retrying once`);
+    await applyUnitTemperature(vav, value);
+    status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification retry check`);
+  }
+  const success = temperatureMatches(status.temperature, value);
+  log(`${vav.name} temperature verification: ${success ? "success" : "failed"}`);
+  if (!success) throw new Error(`${vav.name} temperature is not ${value.toFixed(1)} °C after second set: ${summarizeUnitStatus(status)}`);
+}
+
 async function keychainPassword() {
   try {
     const { stdout } = await execFileAsync("/usr/bin/security", [
@@ -599,12 +669,17 @@ async function password() {
 const action = process.argv[2] || "status";
 const force = process.argv.includes("--force") || process.env.AC_FORCE === "1";
 jsonOutput = process.argv.includes("--json");
-if (!["status", "on", "off", "temp"].includes(action)) {
-  throw new Error("Usage: node ac-control.mjs status|on|off|temp [value] [--force] [--json]");
+if (!["status", "on", "off", "temp", "unit-on", "unit-off", "unit-temp"].includes(action)) {
+  throw new Error("Usage: node ac-control.mjs status|on|off|temp [value]|unit-on [unit]|unit-off [unit]|unit-temp [unit] [value] [--force] [--json]");
 }
 
-const tempValue = Number(process.argv[3]);
+const unitName = action.startsWith("unit-") ? process.argv[3] : "";
+const tempValue = Number(action === "unit-temp" ? process.argv[4] : process.argv[3]);
 if (action === "temp" && (!Number.isFinite(tempValue) || tempValue < 16 || tempValue > 30)) {
+  throw new Error("Temperature must be a number from 16 to 30");
+}
+if (action.startsWith("unit-") && !unitName) throw new Error("Missing unit name");
+if (action === "unit-temp" && (!Number.isFinite(tempValue) || tempValue < 16 || tempValue > 30)) {
   throw new Error("Temperature must be a number from 16 to 30");
 }
 
@@ -634,6 +709,12 @@ try {
     await setTemperatureWithVerification(tempValue);
   } else if (action === "off") {
     await closeWithVerification();
+  } else if (action === "unit-on") {
+    await setUnitModeWithVerification(unitName, "on");
+  } else if (action === "unit-off") {
+    await setUnitModeWithVerification(unitName, "off");
+  } else if (action === "unit-temp") {
+    await setUnitTemperatureWithVerification(unitName, tempValue);
   } else {
     await openWithVerification();
   }
