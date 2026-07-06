@@ -1,30 +1,26 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
+import {
+  execFileAsync,
+  here,
+  jobs,
+  launchAgentsDir,
+  loadAgent,
+  logsDir,
+  nodePath,
+  panelLabel,
+  parseTime,
+  plistPathFor,
+  readJobTime,
+  sh,
+  xml,
+} from "./launchd.mjs";
 
-const execFileAsync = promisify(execFile);
-
-const here = path.dirname(fileURLToPath(import.meta.url));
 const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
-const nodePath = await fs.access("/opt/homebrew/bin/node").then(
-  () => "/opt/homebrew/bin/node",
-  () => process.execPath,
-);
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
-const launchAgentsDir = path.join(os.homedir(), "Library", "LaunchAgents");
-const logsDir = path.join(here, "logs");
-const domain = `gui/${process.getuid()}`;
-const jobs = {
-  on: { label: "com.company-ac.on", defaultTime: "09:30" },
-  off: { label: "com.company-ac.off", defaultTime: "17:50" },
-};
-const panelLabel = "com.company-ac.panel";
 
 function askHidden(question) {
   return new Promise((resolve) => {
@@ -55,32 +51,6 @@ function askHidden(question) {
   });
 }
 
-function xml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function sh(value) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function parseTime(value) {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || "");
-  if (!match) throw new Error("Time must be HH:MM");
-  return { hour: Number(match[1]), minute: Number(match[2]), value };
-}
-
-function formatTime(hour, minute) {
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function keychainPassword() {
   try {
     const { stdout } = await execFileAsync("/usr/bin/security", [
@@ -95,18 +65,6 @@ async function keychainPassword() {
   } catch {
     return "";
   }
-}
-
-async function readJobTime(action) {
-  const job = jobs[action];
-  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
-  try {
-    const body = await fs.readFile(plistPath, "utf8");
-    const hour = /<key>Hour<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
-    const minute = /<key>Minute<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
-    if (hour !== undefined && minute !== undefined) return formatTime(Number(hour), Number(minute));
-  } catch {}
-  return job.defaultTime;
 }
 
 function schedulePlist(label, action, hour, minute) {
@@ -174,33 +132,15 @@ function panelPlist() {
 async function writeScheduleJob(action, time) {
   const job = jobs[action];
   const { hour, minute } = parseTime(time);
-  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
+  const plistPath = plistPathFor(job.label);
   await fs.writeFile(plistPath, schedulePlist(job.label, action, hour, minute));
   return plistPath;
 }
 
 async function writePanelJob() {
-  const plistPath = path.join(launchAgentsDir, `${panelLabel}.plist`);
+  const plistPath = plistPathFor(panelLabel);
   await fs.writeFile(plistPath, panelPlist());
   return plistPath;
-}
-
-async function loadAgent(label, plistPath, enabled = true) {
-  await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${label}`]).catch(() => {});
-  await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
-  await sleep(500);
-  await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${label}`]);
-
-  try {
-    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
-  } catch {
-    await sleep(1500);
-    await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${label}`]).catch(() => {});
-    await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
-    await sleep(500);
-    await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${label}`]);
-    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
-  }
 }
 
 const password = process.env.AC_PASSWORD || await keychainPassword() || await askHidden("AC password for Keychain: ");

@@ -596,11 +596,11 @@ if (action === "on" && !force) {
   }
 }
 
-await login(await password());
-await startBoxSession();
-
 const unlock = action === "status" ? null : await acquireControlLock();
 try {
+  await login(await password());
+  await startBoxSession();
+
   if (action === "status") {
     const status = await readSystemStatus();
     if (jsonOutput) {

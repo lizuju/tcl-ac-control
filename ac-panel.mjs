@@ -1,58 +1,36 @@
 import http from "node:http";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
+import {
+  domain,
+  execFileAsync as launchdExecFileAsync,
+  here,
+  jobs,
+  launchAgentsDir,
+  loadAgent,
+  logsDir,
+  nodePath,
+  parseTime,
+  plistPathFor,
+  readAgentEnabled,
+  readAgentLoaded,
+  readJobTime,
+  sh,
+  xml,
+} from "./launchd.mjs";
 
 const execFileAsync = promisify(execFile);
-const here = path.dirname(fileURLToPath(import.meta.url));
 const scriptPath = path.join(here, "ac-control.mjs");
 const host = "127.0.0.1";
 const port = Number(process.env.AC_PANEL_PORT || 3033);
 const panelTitle = process.env.AC_PANEL_TITLE || "AC Control";
 const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
-const launchAgentsDir = path.join(os.homedir(), "Library", "LaunchAgents");
-const logsDir = path.join(here, "logs");
-const nodePath = await fs.access("/opt/homebrew/bin/node").then(
-  () => "/opt/homebrew/bin/node",
-  () => process.execPath,
-);
-const jobs = {
-  on: { label: "com.company-ac.on", defaultTime: "09:30" },
-  off: { label: "com.company-ac.off", defaultTime: "17:50" },
-};
 let scheduleQueue = Promise.resolve();
 let controlQueue = Promise.resolve();
-
-function xml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function sh(value) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function parseTime(value) {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || "");
-  if (!match) throw new Error("时间格式必须是 HH:MM");
-  return { hour: Number(match[1]), minute: Number(match[2]), value };
-}
-
-function formatTime(hour, minute) {
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function plist(label, action, hour, minute) {
   const command = [
@@ -89,22 +67,10 @@ function plist(label, action, hour, minute) {
 `;
 }
 
-async function readJobTime(action) {
-  const job = jobs[action];
-  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
-  try {
-    const body = await fs.readFile(plistPath, "utf8");
-    const hour = /<key>Hour<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
-    const minute = /<key>Minute<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
-    if (hour !== undefined && minute !== undefined) return formatTime(Number(hour), Number(minute));
-  } catch {}
-  return job.defaultTime;
-}
-
 async function writeJobFile(action, time) {
   const job = jobs[action];
   const { hour, minute } = parseTime(time);
-  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
+  const plistPath = plistPathFor(job.label);
 
   await fs.mkdir(launchAgentsDir, { recursive: true });
   await fs.mkdir(logsDir, { recursive: true });
@@ -112,56 +78,24 @@ async function writeJobFile(action, time) {
   return plistPath;
 }
 
-async function loadJob(action, enabled) {
-  const job = jobs[action];
-  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
-  const domain = `gui/${process.getuid()}`;
-
-  await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${job.label}`]).catch(() => {});
-  await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
-  await sleep(500);
-  await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
-
-  try {
-    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
-  } catch {
-    await sleep(1500);
-    await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${job.label}`]).catch(() => {});
-    await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
-    await sleep(500);
-    await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
-    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
-  }
-}
-
 async function readJobEnabled(action) {
-  const { stdout } = await execFileAsync("/bin/launchctl", ["print-disabled", `gui/${process.getuid()}`]);
-  const label = jobs[action].label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`"${label}" => (enabled|disabled)`).exec(stdout);
-  return match?.[1] !== "disabled";
+  return readAgentEnabled(jobs[action].label);
 }
 
 async function readJobLoaded(action) {
-  const domain = `gui/${process.getuid()}`;
-  try {
-    await execFileAsync("/bin/launchctl", ["print", `${domain}/${jobs[action].label}`]);
-    return true;
-  } catch {
-    return false;
-  }
+  return readAgentLoaded(jobs[action].label);
 }
 
 async function ensureJobLoaded(action, enabled) {
-  if (!await readJobLoaded(action)) await loadJob(action, enabled);
+  if (!await readJobLoaded(action)) await loadAgent(jobs[action].label, plistPathFor(jobs[action].label), enabled);
 }
 
 async function setScheduleEnabled(enabled) {
-  const domain = `gui/${process.getuid()}`;
   if (enabled) {
     for (const action of Object.keys(jobs)) await ensureJobLoaded(action, true);
   }
   for (const job of Object.values(jobs)) {
-    await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
+    await launchdExecFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
   }
   return readSchedule();
 }
@@ -197,8 +131,8 @@ async function writeSchedule(on, off) {
   await writeJobFile("on", on);
   await writeJobFile("off", off);
   if (enabled) {
-    await loadJob("on", true);
-    await loadJob("off", true);
+    await loadAgent(jobs.on.label, plistPathFor(jobs.on.label), true);
+    await loadAgent(jobs.off.label, plistPathFor(jobs.off.label), true);
   } else {
     await setScheduleEnabled(false);
   }
