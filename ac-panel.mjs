@@ -214,8 +214,8 @@ function html() {
     select, input { height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 14px; font-size: 20px; background: white; color: #172026; box-sizing: border-box; min-width: 0; }
     button { height: 64px; border: 0; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; color: white; }
     button:disabled { opacity: .55; cursor: wait; }
-    #on { background: #177245; }
-    #off { background: #b42318; }
+    #powerToggle.powerToggleOn { background: #177245; }
+    #powerToggle.powerToggleOff { background: #b42318; }
     #tempSet { height: 56px; background: #175cd3; }
     #scheduleSave { height: 56px; background: #334155; }
     #scheduleStatus { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; font-size: 15px; font-weight: 700; background: #dcfce7; color: #166534; }
@@ -262,8 +262,7 @@ function html() {
       </section>
       <section class="controls">
         <div class="panel">
-          <button id="on" type="button">打开空调</button>
-          <button id="off" type="button">关闭空调</button>
+          <button id="powerToggle" class="powerToggleOn" type="button" data-action="on">打开空调</button>
         </div>
         <div class="temp">
           <select id="temperature" aria-label="温度">
@@ -311,6 +310,7 @@ function html() {
     const status = document.querySelector("#status");
     const stateSummary = document.querySelector("#stateSummary");
     const unitGrid = document.querySelector("#unitGrid");
+    const powerToggle = document.querySelector("#powerToggle");
     const temperatureSelect = document.querySelector("#temperature");
     const scheduleOn = document.querySelector("#scheduleOn");
     const scheduleOff = document.querySelector("#scheduleOff");
@@ -341,6 +341,11 @@ function html() {
         '<span>模式 ' + escapeHtml(data.mode) + '</span>' +
         '<span>温度 ' + escapeHtml(data.temperature) + '</span>' +
         '<span>' + data.activeUnits + '/' + data.totalUnits + ' 台占用</span>';
+      const powerAction = allOff ? "on" : "off";
+      powerToggle.textContent = allOff ? "打开空调" : "关闭空调";
+      powerToggle.dataset.action = powerAction;
+      powerToggle.classList.toggle("powerToggleOn", powerAction === "on");
+      powerToggle.classList.toggle("powerToggleOff", powerAction === "off");
       const byName = new Map(data.units.map((unit) => [unit.name, unit]));
       const columns = unitColumns.length ? unitColumns : [data.units.map((unit) => unit.name)];
       const orderedUnits = columns.map((column) => column.map((name) => byName.get(name)).filter(Boolean));
@@ -434,8 +439,7 @@ function html() {
       }
     }
 
-    document.querySelector("#on").addEventListener("click", () => run("on"));
-    document.querySelector("#off").addEventListener("click", () => run("off"));
+    powerToggle.addEventListener("click", () => run(powerToggle.dataset.action || "on"));
     document.querySelector("#tempSet").addEventListener("click", () => {
       const value = temperatureSelect.value;
       run("temp?value=" + encodeURIComponent(value));
