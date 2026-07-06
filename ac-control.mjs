@@ -15,6 +15,8 @@ const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 const holidayApi = process.env.AC_HOLIDAY_API || "https://api.jiejiariapi.com/v1/holidays";
 const holidayCacheDir = process.env.AC_HOLIDAY_CACHE_DIR || path.join(here, "holiday-cache");
 const lockDir = path.join(here, ".ac-control.lock");
+const verifyTimeoutMs = Number(process.env.AC_VERIFY_TIMEOUT_MS || 60000);
+const verifyIntervalMs = Number(process.env.AC_VERIFY_INTERVAL_MS || 3000);
 const modeOrd = requiredEnv("AC_MODE_ORD");
 const tempOrd = requiredEnv("AC_TEMP_ORD");
 const vavBaseOrd = requiredEnv("AC_VAV_BASE_ORD").replace(/\/+$/, "");
@@ -458,6 +460,24 @@ function allTemperaturesMatch(status, value) {
     && status.units.every((unit) => temperatureMatches(unit.temperature, value));
 }
 
+function summarizeStatus(status) {
+  const units = status.units.map((unit) => `${unit.name}:${unit.mode}/${unit.temperature}`).join(", ");
+  return `mode=${status.mode}, temperature=${status.temperature}, occupied=${status.activeUnits}/${status.totalUnits}, units=[${units}]`;
+}
+
+async function waitForStatus(predicate, label) {
+  const timeoutAt = Date.now() + verifyTimeoutMs;
+  let status = await readSystemStatus();
+
+  while (!predicate(status) && Date.now() < timeoutAt) {
+    await sleep(verifyIntervalMs);
+    status = await readSystemStatus();
+  }
+
+  log(`${label}: ${summarizeStatus(status)}`);
+  return status;
+}
+
 async function applyMode(action) {
   const before = (await resolveMode()).o;
   log(`Mode before: ${currentDisplay(before)}`);
@@ -471,27 +491,27 @@ async function applyMode(action) {
 
 async function closeWithVerification() {
   await applyMode("off");
-  let status = await readSystemStatus();
+  let status = await waitForStatus((item) => item.closed, "Close verification check");
   if (!status.closed) {
     log(`Close verification failed: ${status.activeUnits}/${status.totalUnits} units still occupied, retrying once`);
     await applyMode("off");
-    status = await readSystemStatus();
+    status = await waitForStatus((item) => item.closed, "Close verification retry check");
   }
   log(`Close verification: ${status.closed ? "success" : "failed"}`);
-  if (!status.closed) throw new Error(`${status.activeUnits}/${status.totalUnits} units still occupied after second close`);
+  if (!status.closed) throw new Error(`close failed after second attempt: ${summarizeStatus(status)}`);
 }
 
 async function openWithVerification() {
   await applyMode("on");
-  let status = await readSystemStatus();
+  let status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification check");
   if (!allUnitsInMode(status, "on")) {
     log(`Open verification failed: ${status.activeUnits}/${status.totalUnits} units occupied, retrying once`);
     await applyMode("on");
-    status = await readSystemStatus();
+    status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification retry check");
   }
   const success = allUnitsInMode(status, "on");
   log(`Open verification: ${success ? "success" : "failed"}`);
-  if (!success) throw new Error(`${status.totalUnits - status.activeUnits}/${status.totalUnits} units not occupied after second open`);
+  if (!success) throw new Error(`open failed after second attempt: ${summarizeStatus(status)}`);
 }
 
 async function applyTemperature(value) {
@@ -509,18 +529,18 @@ async function applyTemperature(value) {
 
 async function setTemperatureWithVerification(value) {
   await applyTemperature(value);
-  let status = await readSystemStatus();
+  let status = await waitForStatus((item) => allTemperaturesMatch(item, value), "Temperature verification check");
   if (!allTemperaturesMatch(status, value)) {
     const mismatched = status.units
       .filter((unit) => !temperatureMatches(unit.temperature, value))
       .map((unit) => `${unit.name} ${unit.temperature}`);
     log(`Temperature verification failed: ${mismatched.join(", ") || `global ${status.temperature}`}, retrying once`);
     await applyTemperature(value);
-    status = await readSystemStatus();
+    status = await waitForStatus((item) => allTemperaturesMatch(item, value), "Temperature verification retry check");
   }
   const success = allTemperaturesMatch(status, value);
   log(`Temperature verification: ${success ? "success" : "failed"}`);
-  if (!success) throw new Error(`temperature is not ${value.toFixed(1)} °C after second set`);
+  if (!success) throw new Error(`temperature is not ${value.toFixed(1)} °C after second set: ${summarizeStatus(status)}`);
 }
 
 async function keychainPassword() {
