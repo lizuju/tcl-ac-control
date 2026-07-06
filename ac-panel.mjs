@@ -195,7 +195,7 @@ function html() {
     .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
     .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
-    .unitTempRow { display: grid; grid-template-columns: minmax(0, 1fr) .72fr; gap: 6px; grid-column: 1 / -1; }
+    .unitTempRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; grid-column: 1 / -1; }
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
     .unitOn { background: #177245; }
