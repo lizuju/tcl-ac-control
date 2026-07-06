@@ -195,7 +195,7 @@ function html() {
     .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
     .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
-    .unitTempRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; grid-column: 1 / -1; }
+    .unitTempRow { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; grid-column: 1 / -1; }
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
     .unitToggle { grid-column: 1 / -1; }
@@ -389,7 +389,7 @@ function html() {
       scheduleStatus.classList.toggle("disabledSchedule", state === "disabled");
       scheduleStatus.classList.toggle("errorSchedule", state === "error");
       scheduleToggle.textContent = data.enabled ? "关闭定时任务" : "开启定时任务";
-      scheduleToggle.classList.toggle("disabledSchedule", state !== "running");
+      scheduleToggle.classList.toggle("disabledSchedule", state === "running");
       scheduleToggle.dataset.enabled = String(state === "running");
       const onJob = data.jobs && data.jobs.on;
       const offJob = data.jobs && data.jobs.off;
