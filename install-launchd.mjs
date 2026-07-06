@@ -22,6 +22,10 @@ const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
 
+if (process.platform !== "darwin") {
+  throw new Error("install-launchd.mjs is macOS only; use install-windows.mjs on Windows");
+}
+
 function askHidden(question) {
   return new Promise((resolve) => {
     let value = "";

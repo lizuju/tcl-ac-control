@@ -21,6 +21,11 @@ import {
   sh,
   xml,
 } from "./launchd.mjs";
+import {
+  readWindowsSchedule,
+  setWindowsScheduleEnabled,
+  writeWindowsSchedule,
+} from "./windows-scheduler.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = path.join(here, "ac-control.mjs");
@@ -94,14 +99,14 @@ async function ensureJobLoaded(action, enabled) {
   if (!await readJobLoaded(action)) await loadAgent(jobs[action].label, plistPathFor(jobs[action].label), enabled);
 }
 
-async function setScheduleEnabled(enabled) {
+async function setMacScheduleEnabled(enabled) {
   if (enabled) {
     for (const action of Object.keys(jobs)) await ensureJobLoaded(action, true);
   }
   for (const job of Object.values(jobs)) {
     await launchdExecFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
   }
-  return readSchedule();
+  return readMacSchedule();
 }
 
 async function updateSchedule(operation) {
@@ -109,7 +114,7 @@ async function updateSchedule(operation) {
   return scheduleQueue;
 }
 
-async function readSchedule() {
+async function readMacSchedule() {
   const onEnabled = await readJobEnabled("on");
   const offEnabled = await readJobEnabled("off");
   const onLoaded = await readJobLoaded("on");
@@ -128,19 +133,34 @@ async function readSchedule() {
   };
 }
 
-async function writeSchedule(on, off) {
+async function writeMacSchedule(on, off) {
   parseTime(on);
   parseTime(off);
-  const enabled = (await readSchedule()).enabled;
+  const enabled = (await readMacSchedule()).enabled;
   await writeJobFile("on", on);
   await writeJobFile("off", off);
   if (enabled) {
     await loadAgent(jobs.on.label, plistPathFor(jobs.on.label), true);
     await loadAgent(jobs.off.label, plistPathFor(jobs.off.label), true);
   } else {
-    await setScheduleEnabled(false);
+    await setMacScheduleEnabled(false);
   }
-  return readSchedule();
+  return readMacSchedule();
+}
+
+async function setScheduleEnabled(enabled) {
+  if (process.platform === "win32") return setWindowsScheduleEnabled(enabled);
+  return setMacScheduleEnabled(enabled);
+}
+
+async function readSchedule() {
+  if (process.platform === "win32") return readWindowsSchedule();
+  return readMacSchedule();
+}
+
+async function writeSchedule(on, off) {
+  if (process.platform === "win32") return writeWindowsSchedule(on, off);
+  return writeMacSchedule(on, off);
 }
 
 function html() {
