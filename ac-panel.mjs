@@ -1,0 +1,574 @@
+import http from "node:http";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { requiredEnv } from "./env.mjs";
+
+const execFileAsync = promisify(execFile);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const scriptPath = path.join(here, "ac-control.mjs");
+const host = "127.0.0.1";
+const port = Number(process.env.AC_PANEL_PORT || 3033);
+const panelTitle = process.env.AC_PANEL_TITLE || "AC Control";
+const username = requiredEnv("AC_USERNAME");
+const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
+const launchAgentsDir = path.join(os.homedir(), "Library", "LaunchAgents");
+const logsDir = path.join(here, "logs");
+const nodePath = await fs.access("/opt/homebrew/bin/node").then(
+  () => "/opt/homebrew/bin/node",
+  () => process.execPath,
+);
+const jobs = {
+  on: { label: "com.company-ac.on", defaultTime: "09:30" },
+  off: { label: "com.company-ac.off", defaultTime: "17:50" },
+};
+let scheduleQueue = Promise.resolve();
+let controlQueue = Promise.resolve();
+
+function xml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function sh(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function parseTime(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || "");
+  if (!match) throw new Error("时间格式必须是 HH:MM");
+  return { hour: Number(match[1]), minute: Number(match[2]), value };
+}
+
+function formatTime(hour, minute) {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function plist(label, action, hour, minute) {
+  const command = [
+    `cd ${sh(here)}`,
+    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)"`,
+    `${sh(nodePath)} ${sh(scriptPath)} ${action}`,
+  ].join(" && ");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xml(label)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>${xml(command)}</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>${hour}</integer>
+    <key>Minute</key>
+    <integer>${minute}</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>${xml(path.join(logsDir, `${action}.log`))}</string>
+  <key>StandardErrorPath</key>
+  <string>${xml(path.join(logsDir, `${action}.err.log`))}</string>
+</dict>
+</plist>
+`;
+}
+
+async function readJobTime(action) {
+  const job = jobs[action];
+  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
+  try {
+    const body = await fs.readFile(plistPath, "utf8");
+    const hour = /<key>Hour<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
+    const minute = /<key>Minute<\/key>\s*<integer>(\d+)<\/integer>/.exec(body)?.[1];
+    if (hour !== undefined && minute !== undefined) return formatTime(Number(hour), Number(minute));
+  } catch {}
+  return job.defaultTime;
+}
+
+async function writeJobFile(action, time) {
+  const job = jobs[action];
+  const { hour, minute } = parseTime(time);
+  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
+
+  await fs.mkdir(launchAgentsDir, { recursive: true });
+  await fs.mkdir(logsDir, { recursive: true });
+  await fs.writeFile(plistPath, plist(job.label, action, hour, minute));
+  return plistPath;
+}
+
+async function loadJob(action, enabled) {
+  const job = jobs[action];
+  const plistPath = path.join(launchAgentsDir, `${job.label}.plist`);
+  const domain = `gui/${process.getuid()}`;
+
+  await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${job.label}`]).catch(() => {});
+  await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
+  await sleep(500);
+  await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
+
+  try {
+    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
+  } catch {
+    await sleep(1500);
+    await execFileAsync("/bin/launchctl", ["bootout", `${domain}/${job.label}`]).catch(() => {});
+    await execFileAsync("/bin/launchctl", ["bootout", domain, plistPath]).catch(() => {});
+    await sleep(500);
+    await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
+    await execFileAsync("/bin/launchctl", ["bootstrap", domain, plistPath]);
+  }
+}
+
+async function readJobEnabled(action) {
+  const { stdout } = await execFileAsync("/bin/launchctl", ["print-disabled", `gui/${process.getuid()}`]);
+  const label = jobs[action].label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`"${label}" => (enabled|disabled)`).exec(stdout);
+  return match?.[1] !== "disabled";
+}
+
+async function readJobLoaded(action) {
+  const domain = `gui/${process.getuid()}`;
+  try {
+    await execFileAsync("/bin/launchctl", ["print", `${domain}/${jobs[action].label}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureJobLoaded(action, enabled) {
+  if (!await readJobLoaded(action)) await loadJob(action, enabled);
+}
+
+async function setScheduleEnabled(enabled) {
+  const domain = `gui/${process.getuid()}`;
+  if (enabled) {
+    for (const action of Object.keys(jobs)) await ensureJobLoaded(action, true);
+  }
+  for (const job of Object.values(jobs)) {
+    await execFileAsync("/bin/launchctl", [enabled ? "enable" : "disable", `${domain}/${job.label}`]);
+  }
+  return readSchedule();
+}
+
+async function updateSchedule(operation) {
+  scheduleQueue = scheduleQueue.then(operation, operation);
+  return scheduleQueue;
+}
+
+async function readSchedule() {
+  const onEnabled = await readJobEnabled("on");
+  const offEnabled = await readJobEnabled("off");
+  const onLoaded = await readJobLoaded("on");
+  const offLoaded = await readJobLoaded("off");
+  const enabled = onEnabled && offEnabled && onLoaded && offLoaded;
+  const disabled = !onEnabled && !offEnabled;
+  return {
+    on: await readJobTime("on"),
+    off: await readJobTime("off"),
+    enabled,
+    state: enabled ? "running" : disabled ? "disabled" : "error",
+    jobs: {
+      on: { enabled: onEnabled, loaded: onLoaded },
+      off: { enabled: offEnabled, loaded: offLoaded },
+    },
+  };
+}
+
+async function writeSchedule(on, off) {
+  parseTime(on);
+  parseTime(off);
+  const enabled = (await readSchedule()).enabled;
+  await writeJobFile("on", on);
+  await writeJobFile("off", off);
+  if (enabled) {
+    await loadJob("on", true);
+    await loadJob("off", true);
+  } else {
+    await setScheduleEnabled(false);
+  }
+  return readSchedule();
+}
+
+function html() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${xml(panelTitle)}</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 0; background: #f5f7f8; color: #172026; box-sizing: border-box; }
+    main { width: min(980px, calc(100vw - 32px)); }
+    h1 { margin: 0 0 20px; font-size: 28px; font-weight: 700; letter-spacing: 0; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .85fr); gap: 24px; align-items: start; }
+    .controls { display: grid; gap: 12px; }
+    .panel { display: grid; gap: 12px; }
+    .temp { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+    .state { display: grid; gap: 12px; }
+    .stateHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .stateSummary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 40px; }
+    .statePill { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; font-size: 15px; font-weight: 700; background: #e2e8f0; color: #334155; }
+    .statePill.onState { background: #dcfce7; color: #166534; }
+    .statePill.offState { background: #fee2e2; color: #991b1b; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
+    .unitGrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 4px; }
+    .unitName { font-size: 13px; font-weight: 700; color: #172026; }
+    .unitMeta { font-size: 13px; color: #475569; }
+    .unit.onUnit { border-color: #86efac; }
+    .unit.offUnit { border-color: #fca5a5; }
+    .schedule { margin-top: 10px; display: grid; gap: 12px; }
+    .scheduleHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .scheduleGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; }
+    label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: #344054; }
+    select, input { height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 14px; font-size: 20px; background: white; color: #172026; box-sizing: border-box; min-width: 0; }
+    button { height: 64px; border: 0; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; color: white; }
+    button:disabled { opacity: .55; cursor: wait; }
+    #on { background: #177245; }
+    #off { background: #b42318; }
+    #tempSet { height: 56px; background: #175cd3; }
+    #scheduleSave { height: 56px; background: #334155; }
+    #scheduleStatus { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; font-size: 15px; font-weight: 700; background: #dcfce7; color: #166534; }
+    #scheduleStatus.disabledSchedule { background: #fee2e2; color: #991b1b; }
+    #scheduleStatus.errorSchedule { background: #fef3c7; color: #92400e; }
+    .scheduleDetail { min-height: 20px; font-size: 13px; line-height: 1.35; color: #64748b; }
+    #scheduleToggle { height: 56px; background: #177245; }
+    #scheduleToggle.disabledSchedule { background: #b42318; }
+    #refreshStatus { height: 40px; padding: 0 14px; font-size: 15px; background: #475569; }
+    #status { min-height: 52px; white-space: pre-wrap; font-size: 15px; line-height: 1.45; color: #344054; }
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .scheduleGrid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111418; color: #f3f4f6; }
+      label { color: #cbd5e1; }
+      select, input { background: #1f2937; color: #f3f4f6; border-color: #475569; }
+      .unit { background: #1f2937; border-color: #475569; }
+      .unitName { color: #f3f4f6; }
+      .unitMeta { color: #cbd5e1; }
+      .scheduleDetail { color: #cbd5e1; }
+      #status { color: #cbd5e1; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${xml(panelTitle)}</h1>
+    <div class="layout">
+      <section class="state">
+        <div class="stateHeader">
+          <h2>当前状态</h2>
+          <button id="refreshStatus" type="button">刷新</button>
+        </div>
+        <div id="stateSummary" class="stateSummary">读取中...</div>
+        <div id="unitGrid" class="unitGrid"></div>
+      </section>
+      <section class="controls">
+        <div class="panel">
+          <button id="on" type="button">打开空调</button>
+          <button id="off" type="button">关闭空调</button>
+        </div>
+        <div class="temp">
+          <select id="temperature" aria-label="温度">
+            <option value="18">18 °C</option>
+            <option value="19">19 °C</option>
+            <option value="20">20 °C</option>
+            <option value="21">21 °C</option>
+            <option value="22" selected>22 °C</option>
+            <option value="23">23 °C</option>
+            <option value="24">24 °C</option>
+            <option value="25">25 °C</option>
+            <option value="26">26 °C</option>
+            <option value="27">27 °C</option>
+            <option value="28">28 °C</option>
+            <option value="29">29 °C</option>
+            <option value="30">30 °C</option>
+          </select>
+          <button id="tempSet" type="button">设置温度</button>
+        </div>
+        <div class="schedule">
+          <div class="scheduleHeader">
+            <h2>定时任务</h2>
+            <span id="scheduleStatus"><span class="dot"></span>运行中</span>
+          </div>
+          <div class="scheduleGrid">
+            <label>打开
+              <input id="scheduleOn" type="time" value="09:30">
+            </label>
+            <label>关闭
+              <input id="scheduleOff" type="time" value="17:50">
+            </label>
+            <button id="scheduleSave" type="button">保存定时</button>
+          </div>
+          <div id="scheduleDetail" class="scheduleDetail"></div>
+          <button id="scheduleToggle" type="button">关闭定时任务</button>
+        </div>
+        <div id="status">就绪</div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const status = document.querySelector("#status");
+    const buttons = [...document.querySelectorAll("button")];
+    const stateSummary = document.querySelector("#stateSummary");
+    const unitGrid = document.querySelector("#unitGrid");
+    const temperatureSelect = document.querySelector("#temperature");
+    const scheduleOn = document.querySelector("#scheduleOn");
+    const scheduleOff = document.querySelector("#scheduleOff");
+    const scheduleToggle = document.querySelector("#scheduleToggle");
+    const scheduleStatus = document.querySelector("#scheduleStatus");
+    const scheduleDetail = document.querySelector("#scheduleDetail");
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[char]);
+    }
+
+    function renderAcStatus(data) {
+      const allOff = data.closed;
+      const className = allOff ? "offState" : data.activeUnits > 0 ? "onState" : "";
+      const label = allOff ? "已关闭" : data.activeUnits > 0 ? "运行中" : "未知";
+      stateSummary.innerHTML =
+        '<span class="statePill ' + className + '"><span class="dot"></span>' + label + '</span>' +
+        '<span>模式 ' + escapeHtml(data.mode) + '</span>' +
+        '<span>温度 ' + escapeHtml(data.temperature) + '</span>' +
+        '<span>' + data.activeUnits + '/' + data.totalUnits + ' 台占用</span>';
+      unitGrid.innerHTML = data.units.map((unit) => {
+        const unitClass = unit.off ? "offUnit" : unit.on ? "onUnit" : "";
+        return '<div class="unit ' + unitClass + '">' +
+          '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
+          '<div class="unitMeta">' + escapeHtml(unit.mode) + ' · ' + escapeHtml(unit.temperature) + '</div>' +
+          '</div>';
+      }).join("");
+      const temp = String(Math.round(Number.parseFloat(data.temperature)));
+      if (temperatureSelect.querySelector('option[value="' + temp + '"]')) temperatureSelect.value = temp;
+    }
+
+    function renderSchedule(data) {
+      scheduleOn.value = data.on;
+      scheduleOff.value = data.off;
+      const state = data.state || (data.enabled ? "running" : "disabled");
+      scheduleStatus.innerHTML = '<span class="dot"></span>' + (state === "running" ? "运行中" : state === "error" ? "异常" : "已关闭");
+      scheduleStatus.classList.toggle("disabledSchedule", state === "disabled");
+      scheduleStatus.classList.toggle("errorSchedule", state === "error");
+      scheduleToggle.textContent = data.enabled ? "关闭定时任务" : "开启定时任务";
+      scheduleToggle.classList.toggle("disabledSchedule", state !== "running");
+      scheduleToggle.dataset.enabled = String(state === "running");
+      const onJob = data.jobs && data.jobs.on;
+      const offJob = data.jobs && data.jobs.off;
+      if (state === "error" && onJob && offJob) {
+        const label = (job) => (job.enabled ? "已启用" : "已关闭") + " / " + (job.loaded ? "已加载" : "未加载");
+        scheduleDetail.textContent = "打开：" + label(onJob) + "；关闭：" + label(offJob);
+      } else {
+        scheduleDetail.textContent = "";
+      }
+    }
+
+    async function refreshSchedule() {
+      const response = await fetch("/api/schedule");
+      renderSchedule(await response.json());
+    }
+
+    async function refreshAcStatus() {
+      stateSummary.textContent = "读取中...";
+      try {
+        const response = await fetch("/api/status");
+        const data = await response.json();
+        renderAcStatus(data);
+      } catch (error) {
+        stateSummary.textContent = "状态读取失败：" + error.message;
+      }
+    }
+
+    async function run(action) {
+      buttons.forEach((button) => button.disabled = true);
+      status.textContent = "执行中...";
+      try {
+        const response = await fetch("/api/" + action, { method: "POST" });
+        const body = await response.text();
+        status.textContent = body || (response.ok ? "完成" : "失败");
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        await refreshAcStatus();
+        buttons.forEach((button) => button.disabled = false);
+      }
+    }
+
+    document.querySelector("#on").addEventListener("click", () => run("on"));
+    document.querySelector("#off").addEventListener("click", () => run("off"));
+    document.querySelector("#tempSet").addEventListener("click", () => {
+      const value = temperatureSelect.value;
+      run("temp?value=" + encodeURIComponent(value));
+    });
+    document.querySelector("#refreshStatus").addEventListener("click", refreshAcStatus);
+    document.querySelector("#scheduleSave").addEventListener("click", async () => {
+      buttons.forEach((button) => button.disabled = true);
+      status.textContent = "保存中...";
+      const on = scheduleOn.value;
+      const off = scheduleOff.value;
+      try {
+        const response = await fetch("/api/schedule?on=" + encodeURIComponent(on) + "&off=" + encodeURIComponent(off), { method: "POST" });
+        const body = await response.text();
+        status.textContent = body || (response.ok ? "完成" : "失败");
+        if (response.ok) await refreshSchedule();
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        buttons.forEach((button) => button.disabled = false);
+      }
+    });
+    scheduleToggle.addEventListener("click", async () => {
+      buttons.forEach((button) => button.disabled = true);
+      const next = scheduleToggle.dataset.enabled !== "true";
+      status.textContent = "保存中...";
+      try {
+        const response = await fetch("/api/schedule/enabled?value=" + (next ? "1" : "0"), { method: "POST" });
+        const body = await response.text();
+        status.textContent = body || (response.ok ? "完成" : "失败");
+        if (response.ok) await refreshSchedule();
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        buttons.forEach((button) => button.disabled = false);
+      }
+    });
+
+    refreshSchedule().catch(() => {});
+    refreshAcStatus();
+  </script>
+</body>
+</html>`;
+}
+
+async function acStatus() {
+  const { stdout } = await execFileAsync(process.execPath, [scriptPath, "status", "--json"], {
+    cwd: here,
+    timeout: 30000,
+    maxBuffer: 1024 * 1024,
+  });
+  return JSON.parse(stdout);
+}
+
+async function control(action, value) {
+  const args = [scriptPath, action];
+  if (action === "temp") {
+    const temp = Number(value);
+    if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
+    args.push(String(temp));
+  }
+  if (action === "on") args.push("--force");
+  const { stdout, stderr } = await execFileAsync(process.execPath, args, {
+    cwd: here,
+    timeout: 120000,
+    maxBuffer: 1024 * 1024,
+  });
+  return (stdout + stderr).trim();
+}
+
+async function updateControl(operation) {
+  controlQueue = controlQueue.then(operation, operation);
+  return controlQueue;
+}
+
+const server = http.createServer(async (req, res) => {
+  if ((req.method === "GET" || req.method === "HEAD") && req.url === "/") {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(req.method === "HEAD" ? "" : html());
+    return;
+  }
+
+  const url = new URL(req.url || "/", `http://${host}:${port}`);
+  if (req.method === "GET" && url.pathname === "/api/status") {
+    try {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(await acStatus()));
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.stdout || error.stderr || error.message);
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/schedule") {
+    try {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(await readSchedule()));
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.message);
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/schedule/enabled") {
+    try {
+      const enabled = url.searchParams.get("value") === "1";
+      await updateSchedule(() => setScheduleEnabled(enabled));
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      res.end(enabled ? "已开启定时任务" : "已关闭定时任务");
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.stdout || error.stderr || error.message);
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/schedule") {
+    try {
+      const schedule = await updateSchedule(() => writeSchedule(url.searchParams.get("on"), url.searchParams.get("off")));
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      res.end(`已保存定时：打开 ${schedule.on}，关闭 ${schedule.off}`);
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.stdout || error.stderr || error.message);
+    }
+    return;
+  }
+
+  const match = /^\/api\/(on|off|temp)$/.exec(url.pathname);
+  if (req.method === "POST" && match) {
+    try {
+      const output = await updateControl(() => control(match[1], url.searchParams.get("value")));
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      res.end(output || "完成");
+    } catch (error) {
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error.stdout || error.stderr || error.message);
+    }
+    return;
+  }
+
+  res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+  res.end("Not found");
+});
+
+server.listen(port, host, () => {
+  console.log(`AC panel: http://${host}:${port}/`);
+});
