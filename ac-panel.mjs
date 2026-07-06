@@ -280,7 +280,7 @@ function html() {
             <option value="29">29 °C</option>
             <option value="30">30 °C</option>
           </select>
-          <button id="tempSet" type="button">设置温度</button>
+          <button id="tempSet" type="button">保存温度</button>
         </div>
         <div class="schedule">
           <div class="scheduleHeader">
@@ -374,7 +374,7 @@ function html() {
             '<button class="unitToggle ' + toggleClass + '" type="button" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
             '<div class="unitTempRow">' +
               '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
-              '<button class="unitTempSet" type="button">设置</button>' +
+              '<button class="unitTempSet" type="button">保存温度</button>' +
             '</div>' +
           '</div>' +
           '</div>';
