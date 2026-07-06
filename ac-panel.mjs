@@ -27,6 +27,10 @@ const scriptPath = path.join(here, "ac-control.mjs");
 const host = "127.0.0.1";
 const port = Number(process.env.AC_PANEL_PORT || 3033);
 const panelTitle = process.env.AC_PANEL_TITLE || "AC Control";
+const unitColumns = (process.env.AC_PANEL_UNIT_COLUMNS || "")
+  .split("|")
+  .map((column) => column.split(",").map((name) => name.trim()).filter(Boolean))
+  .filter((column) => column.length);
 const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 let scheduleQueue = Promise.resolve();
@@ -162,13 +166,12 @@ function html() {
     .statePill.onState { background: #dcfce7; color: #166534; }
     .statePill.offState { background: #fee2e2; color: #991b1b; }
     .dot { width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
-    .unitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .unitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+    .unitColumn { display: grid; gap: 10px; }
     .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 8px; }
-    .unitTop { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: center; }
-    .unitBadge { display: grid; place-items: center; width: 46px; min-height: 50px; border: 1px solid #60a5fa; border-radius: 6px; background: #eff6ff; }
-    .unitTempValue { font-size: 13px; font-weight: 800; color: #0f172a; line-height: 1.1; }
-    .unitIcon { width: 22px; height: 18px; border-radius: 4px; background: #172026; box-shadow: inset 0 -4px 0 rgba(255,255,255,.15); }
-    .unitIcon::after { content: ""; display: block; width: 26px; height: 8px; margin: 18px auto 0; border-radius: 0 0 6px 6px; background: #22c55e; }
+    .unitTop { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: center; }
+    .unitBadge { display: grid; place-items: center; width: 64px; height: 36px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; box-sizing: border-box; }
+    .unitTempValue { font-size: 13px; font-weight: 800; color: #0f172a; line-height: 1; text-align: center; white-space: nowrap; }
     .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
     .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
@@ -295,6 +298,7 @@ function html() {
     const scheduleDetail = document.querySelector("#scheduleDetail");
     const scheduleInfo = document.querySelector("#scheduleInfo");
     const temps = Array.from({ length: 13 }, (_, index) => String(index + 18));
+    const unitColumns = ${JSON.stringify(unitColumns)};
     let showScheduleInfo = false;
 
     function escapeHtml(value) {
@@ -316,15 +320,21 @@ function html() {
         '<span>模式 ' + escapeHtml(data.mode) + '</span>' +
         '<span>温度 ' + escapeHtml(data.temperature) + '</span>' +
         '<span>' + data.activeUnits + '/' + data.totalUnits + ' 台占用</span>';
-      unitGrid.innerHTML = data.units.map((unit) => {
+      const byName = new Map(data.units.map((unit) => [unit.name, unit]));
+      const columns = unitColumns.length ? unitColumns : [data.units.map((unit) => unit.name)];
+      const orderedUnits = columns.map((column) => column.map((name) => byName.get(name)).filter(Boolean));
+      for (const unit of data.units) {
+        if (!columns.some((column) => column.includes(unit.name))) orderedUnits[orderedUnits.length - 1].push(unit);
+      }
+      const renderUnit = (unit) => {
         const unitClass = unit.off ? "offUnit" : unit.on ? "onUnit" : "";
         const temp = String(Math.round(Number.parseFloat(unit.temperature)));
+        const badgeTemperature = unit.temperature.replace(/\s*°C$/, "°C");
         const options = temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
         return '<div class="unit ' + unitClass + '">' +
           '<div class="unitTop">' +
             '<div class="unitBadge">' +
-              '<div class="unitTempValue">' + escapeHtml(unit.temperature) + '</div>' +
-              '<div class="unitIcon"></div>' +
+              '<div class="unitTempValue">' + escapeHtml(badgeTemperature) + '</div>' +
             '</div>' +
             '<div>' +
               '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
@@ -340,7 +350,10 @@ function html() {
             '</div>' +
           '</div>' +
           '</div>';
-      }).join("");
+      };
+      unitGrid.innerHTML = orderedUnits
+        .map((column) => '<div class="unitColumn">' + column.map(renderUnit).join("") + '</div>')
+        .join("");
       const temp = String(Math.round(Number.parseFloat(data.temperature)));
       if (temperatureSelect.querySelector('option[value="' + temp + '"]')) temperatureSelect.value = temp;
     }
