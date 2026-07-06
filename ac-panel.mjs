@@ -199,8 +199,8 @@ function html() {
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
     .unitToggle { grid-column: 1 / -1; }
-    .unitToggleOn { background: #177245; }
-    .unitToggleOff { background: #b42318; }
+    .unitToggleOn { background: #b42318; }
+    .unitToggleOff { background: #177245; }
     .unitTempSet { background: #175cd3; }
     .unit.onUnit { border-color: #86efac; }
     .unit.offUnit { border-color: #fca5a5; }
@@ -214,16 +214,16 @@ function html() {
     select, input { height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 14px; font-size: 20px; background: white; color: #172026; box-sizing: border-box; min-width: 0; }
     button { height: 64px; border: 0; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; color: white; }
     button:disabled { opacity: .55; cursor: wait; }
-    #powerToggle.powerToggleOn { background: #177245; }
-    #powerToggle.powerToggleOff { background: #b42318; }
+    #powerToggle.powerToggleOn { background: #b42318; }
+    #powerToggle.powerToggleOff { background: #177245; }
     #tempSet { height: 56px; background: #175cd3; }
     #scheduleSave { height: 56px; background: #334155; }
     #scheduleStatus { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; font-size: 15px; font-weight: 700; background: #dcfce7; color: #166534; }
     #scheduleStatus.disabledSchedule { background: #fee2e2; color: #991b1b; }
     #scheduleStatus.errorSchedule { background: #fef3c7; color: #92400e; }
     .scheduleDetail { min-height: 20px; font-size: 13px; line-height: 1.35; color: #64748b; }
-    #scheduleToggle { height: 56px; background: #177245; }
-    #scheduleToggle.disabledSchedule { background: #b42318; }
+    #scheduleToggle { height: 56px; background: #b42318; }
+    #scheduleToggle.disabledSchedule { background: #177245; }
     #refreshStatus { height: 40px; padding: 0 14px; font-size: 15px; background: #475569; }
     #status { min-height: 52px; white-space: pre-wrap; font-size: 15px; line-height: 1.45; color: #344054; }
     @media (max-width: 820px) {
