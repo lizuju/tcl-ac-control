@@ -256,6 +256,7 @@ function html() {
     .unitToggleOn { background: #b42318; }
     .unitToggleOff { background: #177245; }
     .unitTempSet { background: #175cd3; }
+    .unitTempStepper { display: none; }
     .unit.onUnit { border-color: #86efac; }
     .unit.offUnit { border-color: #fca5a5; }
     .schedule { margin-top: 10px; display: grid; gap: 12px; }
@@ -301,18 +302,35 @@ function html() {
       .unitBadge { width: fit-content; max-width: 100%; min-width: 0; height: 32px; padding: 0 10px; overflow: hidden; }
       .unitTempValue { font-size: 14px; }
       .unitName { font-size: 15px; }
+      .unitMeta { font-size: 14px; }
       .unitControls { gap: 8px; }
-      .unitTempRow { grid-template-columns: minmax(0, 2fr) minmax(112px, 1fr); gap: 8px; }
-      .unitControls button, .unitControls select { height: 40px; font-size: 14px; }
-      .unitControls button { padding: 0 6px; }
+      .unitControls .unitToggle { height: 58px; font-size: 20px; }
+      .unitTempRow { grid-template-columns: 1fr; gap: 8px; }
+      .unitTemp { display: none; }
+      .unitTempStepper { display: grid; grid-template-columns: 58px minmax(0, 1fr) 58px; gap: 8px; }
+      .unitControls .unitTempStep { height: 48px; background: #334155; font-size: 26px; line-height: 1; }
+      .unitTempDisplay { display: grid; place-items: center; height: 48px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #172026; font-size: 22px; font-weight: 800; box-sizing: border-box; }
+      .unitControls button, .unitControls select { height: 44px; font-size: 16px; }
+      .unitControls button { padding: 0 8px; }
+      .unitControls .unitTempSet { height: 48px; font-size: 18px; }
+      .schedule { padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
+      .scheduleHeader { align-items: start; }
+      .scheduleGrid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .scheduleGrid label { gap: 8px; }
+      .scheduleGrid input { height: 64px; padding: 0 8px; font-size: 20px; font-weight: 800; text-align: center; }
+      .scheduleGrid input::-webkit-calendar-picker-indicator { margin: 0; padding: 0; }
+      #scheduleSave { grid-column: 1 / -1; height: 54px; font-size: 18px; }
+      #scheduleToggle { height: 58px; font-size: 19px; }
+      .scheduleDetail { min-height: 0; }
       #status { min-height: 32px; }
-    }
-    @media (max-width: 420px) {
-      .unitTempRow { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       .unitGrid { grid-template-columns: 1fr; }
-      .scheduleGrid { grid-template-columns: 1fr; }
+      .scheduleGrid { grid-template-columns: 1fr 1fr; }
+      #scheduleSave { grid-column: 1 / -1; }
+    }
+    @media (max-width: 360px) {
+      .scheduleGrid input { padding: 0 6px; font-size: 18px; }
     }
     @media (prefers-color-scheme: dark) {
       body { background: #111418; color: #f3f4f6; }
@@ -327,11 +345,13 @@ function html() {
       .remoteTempValue { background: #1f2937; color: #f8fafc; border-color: #475569; }
       .remoteNav { background: #334155; color: #f8fafc; }
       button.remoteNav { color: #f8fafc; }
+      .unitTempDisplay { background: #1f2937; color: #f8fafc; border-color: #475569; }
       .unit { background: #1f2937; border-color: #475569; }
       .unitBadge { background: #172033; border-color: #3b82f6; }
       .unitTempValue { color: #f8fafc; }
       .unitName { color: #f3f4f6; }
       .unitMeta { color: #cbd5e1; }
+      .schedule { background: #1f2937; border-color: #475569; }
       .scheduleDetail { color: #cbd5e1; }
       #status { color: #cbd5e1; }
     }
@@ -512,6 +532,11 @@ function html() {
             '<button class="unitToggle ' + toggleClass + '" type="button" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
             '<div class="unitTempRow">' +
               '<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 温度">' + options + '</select>' +
+              '<div class="unitTempStepper" aria-label="' + escapeHtml(unit.name) + ' 温度调节">' +
+                '<button class="unitTempStep" type="button" data-step="-1">-</button>' +
+                '<div class="unitTempDisplay">' + escapeHtml(temp) + ' °C</div>' +
+                '<button class="unitTempStep" type="button" data-step="1">+</button>' +
+              '</div>' +
               '<button class="unitTempSet" type="button">保存温度</button>' +
             '</div>' +
           '</div>' +
@@ -623,6 +648,11 @@ function html() {
       const unit = controls.dataset.unit;
       if (event.target.classList.contains("unitToggle")) {
         run("unit/" + encodeURIComponent(unit) + "/" + event.target.dataset.action);
+      } else if (event.target.classList.contains("unitTempStep")) {
+        const select = controls.querySelector(".unitTemp");
+        const next = Math.max(18, Math.min(30, Number(select.value) + Number(event.target.dataset.step)));
+        select.value = String(next);
+        controls.querySelector(".unitTempDisplay").textContent = next + " °C";
       } else if (event.target.classList.contains("unitTempSet")) {
         const value = controls.querySelector(".unitTemp").value;
         run("unit/" + encodeURIComponent(unit) + "/temp?value=" + encodeURIComponent(value));
