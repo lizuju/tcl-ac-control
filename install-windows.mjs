@@ -26,5 +26,5 @@ await runWindowsPanelTask().catch(() => {});
 console.log(`Installed Windows task ${taskNames.on} at ${schedule.on}`);
 console.log(`Installed Windows task ${taskNames.off} at ${schedule.off}`);
 console.log(`Installed Windows task ${taskNames.panel} at logon`);
-console.log(`Installed Windows task ${taskNames.watchdog} every 5 minutes`);
+console.log(`Installed Windows task ${taskNames.watchdog} every 30 minutes`);
 console.log("Panel URL: http://127.0.0.1:3033/");

@@ -54,6 +54,12 @@ The installer also installs a watchdog. It checks the local panel and scheduled 
 http://127.0.0.1:3033/
 ```
 
+Read-only diagnostics page:
+
+```text
+http://127.0.0.1:3033/doctor
+```
+
 ### Commands
 
 ```sh
@@ -64,6 +70,7 @@ node ac-control.mjs temp 25
 node ac-control.mjs unit-on VAV_01
 node ac-control.mjs unit-off VAV_01
 node ac-control.mjs unit-temp VAV_01 25
+node doctor.mjs
 ```
 
 Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses forced opening and is not blocked by holidays.
@@ -74,3 +81,5 @@ Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses 
 - Do not store real passwords in source files. macOS uses Keychain; Windows uses the local ignored `.env` file or process environment.
 - Whole-system `off`, `on`, and `temp` commands verify all configured VAV units after applying changes and retry once if needed.
 - The watchdog only restores the local panel and scheduler; it does not actively turn AC units on or off.
+- Panel errors only show an error ID; detailed errors are written to the local `logs/panel.err.log`.
+- The watchdog removes log files older than 7 days.

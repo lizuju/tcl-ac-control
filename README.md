@@ -54,6 +54,12 @@ Windows 任务计划程序按 Windows 系统时区触发。如果要让 `09:30` 
 http://127.0.0.1:3033/
 ```
 
+只读诊断页：
+
+```text
+http://127.0.0.1:3033/doctor
+```
+
 ### 命令行
 
 ```sh
@@ -64,6 +70,7 @@ node ac-control.mjs temp 25
 node ac-control.mjs unit-on VAV_01
 node ac-control.mjs unit-off VAV_01
 node ac-control.mjs unit-temp VAV_01 25
+node doctor.mjs
 ```
 
 定时 `on` 会跳过周末和中国节假日。面板里的手动“打开空调”会使用强制打开，不受节假日限制。
@@ -74,3 +81,5 @@ node ac-control.mjs unit-temp VAV_01 25
 - 不要把真实密码写入源码。macOS 使用 Keychain 保存密码；Windows 使用本地 ignored 的 `.env` 或进程环境变量。
 - 全部空调的 `off`、`on`、`temp` 命令会在执行后校验所有配置的 VAV 状态，失败时自动重试一次。
 - 看门狗只负责恢复本地面板和调度任务，不会主动执行打开或关闭空调。
+- 面板错误只显示错误编号，详细错误写入本机 `logs/panel.err.log`。
+- 看门狗会清理 7 天前的日志文件。

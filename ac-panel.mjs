@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
+import { readDiagnostics } from "./doctor.mjs";
 import {
   domain,
   execFileAsync as launchdExecFileAsync,
@@ -40,6 +41,38 @@ const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 let scheduleQueue = Promise.resolve();
 let controlQueue = Promise.resolve();
+
+function redact(value) {
+  return String(value || "").replaceAll(process.env.AC_PASSWORD || "\u0000", "[redacted]");
+}
+
+function detailedError(error) {
+  return [
+    error.stack || error.message,
+    error.stdout && `stdout:\n${error.stdout}`,
+    error.stderr && `stderr:\n${error.stderr}`,
+  ].filter(Boolean).map(redact).join("\n");
+}
+
+async function recordError(scope, error) {
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const body = `[${new Date().toISOString()}] ${id} ${scope}\n${detailedError(error)}\n\n`;
+  await fs.mkdir(logsDir, { recursive: true });
+  await fs.appendFile(path.join(logsDir, "panel.err.log"), body);
+  console.error(body.trimEnd());
+  return id;
+}
+
+async function sendError(res, scope, error) {
+  let id = "unknown";
+  try {
+    id = await recordError(scope, error);
+  } catch (logError) {
+    console.error(logError);
+  }
+  res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+  res.end(`操作失败，错误编号 ${id}。详细信息已写入本机 logs/panel.err.log。`);
+}
 
 function plist(label, action, hour, minute) {
   const command = [
@@ -413,6 +446,7 @@ function html() {
 
     async function refreshSchedule() {
       const response = await fetch("/api/schedule");
+      if (!response.ok) throw new Error(await response.text());
       renderSchedule(await response.json());
     }
 
@@ -420,6 +454,7 @@ function html() {
       stateSummary.textContent = "读取中...";
       try {
         const response = await fetch("/api/status");
+        if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
         renderAcStatus(data);
       } catch (error) {
@@ -502,6 +537,50 @@ function html() {
 </html>`;
 }
 
+function diagnosticsHtml(data) {
+  const rows = data.checks.map((item) => (
+    `<tr><td>${item.ok ? "OK" : "FAIL"}</td><td>${xml(item.name)}</td><td>${xml(item.detail)}</td></tr>`
+  )).join("");
+
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${xml(panelTitle)} - 诊断</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; padding: 32px; background: #f5f7f8; color: #172026; }
+    main { max-width: 900px; margin: 0 auto; display: grid; gap: 16px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    a { color: #175cd3; font-weight: 700; text-decoration: none; }
+    table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+    th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+    th { color: #475569; font-size: 14px; }
+    tr:last-child td { border-bottom: 0; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111418; color: #f3f4f6; }
+      table { background: #1f2937; border-color: #475569; }
+      th, td { border-color: #334155; }
+      th { color: #cbd5e1; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">返回控制面板</a>
+    <h1>系统诊断：${data.ok ? "OK" : "FAIL"}</h1>
+    <div>生成时间：${xml(data.generatedAt)}</div>
+    <div>面板地址：${xml(data.panelUrl)}</div>
+    <table>
+      <thead><tr><th>状态</th><th>项目</th><th>说明</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </main>
+</body>
+</html>`;
+}
+
 async function acStatus() {
   const { stdout } = await execFileAsync(process.execPath, [scriptPath, "status", "--json"], {
     cwd: here,
@@ -556,13 +635,32 @@ const server = http.createServer(async (req, res) => {
   }
 
   const url = new URL(req.url || "/", `http://${host}:${port}`);
+  if (req.method === "GET" && url.pathname === "/doctor") {
+    try {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(diagnosticsHtml(await readDiagnostics()));
+    } catch (error) {
+      await sendError(res, "GET /doctor", error);
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/diagnostics") {
+    try {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(await readDiagnostics()));
+    } catch (error) {
+      await sendError(res, "GET /api/diagnostics", error);
+    }
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/status") {
     try {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(await acStatus()));
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.stdout || error.stderr || error.message);
+      await sendError(res, "GET /api/status", error);
     }
     return;
   }
@@ -572,8 +670,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(await readSchedule()));
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.message);
+      await sendError(res, "GET /api/schedule", error);
     }
     return;
   }
@@ -585,8 +682,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       res.end(enabled ? "已开启定时任务" : "已关闭定时任务");
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.stdout || error.stderr || error.message);
+      await sendError(res, "POST /api/schedule/enabled", error);
     }
     return;
   }
@@ -597,8 +693,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       res.end(`已保存定时：打开 ${schedule.on}，关闭 ${schedule.off}`);
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.stdout || error.stderr || error.message);
+      await sendError(res, "POST /api/schedule", error);
     }
     return;
   }
@@ -610,8 +705,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       res.end(output || "完成");
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.stdout || error.stderr || error.message);
+      await sendError(res, `POST /api/${match[1]}`, error);
     }
     return;
   }
@@ -624,8 +718,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       res.end(output || "完成");
     } catch (error) {
-      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-      res.end(error.stdout || error.stderr || error.message);
+      await sendError(res, `POST /api/unit/${unitMatch[2]}`, error);
     }
     return;
   }

@@ -33,9 +33,29 @@ const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
+const logRetentionMs = 7 * 24 * 60 * 60 * 1000;
 
 function log(message) {
   console.log(`${new Date().toISOString()} ${message}`);
+}
+
+async function cleanupLogs() {
+  let removed = 0;
+  const cutoff = Date.now() - logRetentionMs;
+  try {
+    const entries = await fs.readdir(logsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const filePath = path.join(logsDir, entry.name);
+      const stat = await fs.stat(filePath);
+      if (stat.mtimeMs >= cutoff) continue;
+      await fs.unlink(filePath);
+      removed += 1;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (removed) log(`removed ${removed} log files older than 7 days`);
 }
 
 async function panelHealthy() {
@@ -166,6 +186,8 @@ async function windowsWatchdog() {
   }
   log("verified Windows schedule tasks");
 }
+
+await cleanupLogs();
 
 if (process.platform === "darwin") {
   await macWatchdog();
