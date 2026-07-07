@@ -202,7 +202,7 @@ function html() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${xml(panelTitle)}</title>
   <style>
-    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 0; background: #f5f7f8; color: #172026; box-sizing: border-box; }
     main { width: min(980px, calc(100vw - 32px)); }
     h1 { margin: 0 0 20px; font-size: 28px; font-weight: 700; letter-spacing: 0; }
@@ -297,9 +297,9 @@ function html() {
       #refreshStatus { display: none; }
       .unitGrid { grid-template-columns: 1fr; }
       .unit { padding: 10px; gap: 8px; }
-      .unitTop { gap: 8px; }
-      .unitBadge { width: 76px; min-width: 76px; height: 34px; }
-      .unitTempValue { font-size: 13px; }
+      .unitTop { display: grid; grid-template-columns: 1fr; gap: 6px; }
+      .unitBadge { width: fit-content; max-width: 100%; min-width: 0; height: 32px; padding: 0 10px; overflow: hidden; }
+      .unitTempValue { font-size: 14px; }
       .unitName { font-size: 15px; }
       .unitControls { gap: 8px; }
       .unitTempRow { grid-template-columns: minmax(0, 2fr) minmax(112px, 1fr); gap: 8px; }
