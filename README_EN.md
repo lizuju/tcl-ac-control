@@ -1,0 +1,76 @@
+# TCL AC Control
+
+<p>
+  <a href="README.md"><kbd>中文</kbd></a>
+</p>
+
+This project provides a local web panel and scheduler for a Niagara/BMS-based AC system. It turns the original backend-style AC interface into a simpler local control panel for daily on/off control, temperature setting, per-unit status checks, and schedule management.
+
+Deployment scope: internal AC control for TCL Building, Pazhou Street, Haizhu District, Guangzhou, Guangdong Province.
+
+### Advantages Over The Original System
+
+- More intuitive operation: on, off, temperature, and status are all available in one panel.
+- Simpler workflow: common actions are exposed as clear buttons instead of searching through the original system pages and points.
+- Whole-system control: all configured AC units can be controlled together, while overriding previous per-unit settings when needed.
+- Per-unit control: each AC unit has its own on, off, and temperature controls.
+- Visual schedule management: open/close times and schedule enablement can be adjusted directly from the panel.
+- Workday-aware scheduling: scheduled opening skips weekends and China public holidays, with holiday data handled by year.
+- Safer shutdown: close operations verify the result and retry once if needed.
+- Watchdog support: the local panel and scheduler are checked periodically and recovered when they drop unexpectedly.
+- macOS and Windows support: macOS uses LaunchAgent, and Windows uses Task Scheduler.
+
+### Quick Start
+
+1. Copy the example environment file:
+
+```sh
+cp .env.example .env
+```
+
+2. Edit `.env` with your Niagara URL, username, point ORDs, VAV list, and panel title.
+
+3. Install the scheduler and local panel.
+
+On macOS, this installs LaunchAgent jobs and stores the password in Keychain:
+
+```sh
+node install-launchd.mjs
+```
+
+On Windows, add `AC_PASSWORD` to the local ignored `.env` file, then install Task Scheduler jobs:
+
+```powershell
+node install-windows.mjs
+```
+
+Windows Task Scheduler triggers by the Windows system time zone. Keep the Windows time zone set to China time for `09:30` and `17:50` to mean Beijing time.
+
+The installer also installs a watchdog. It checks the local panel and scheduled jobs every 30 minutes. If you manually disable the schedule from the panel, the watchdog will not force it back on.
+
+4. Open the local panel:
+
+```text
+http://127.0.0.1:3033/
+```
+
+### Commands
+
+```sh
+node ac-control.mjs status
+node ac-control.mjs on
+node ac-control.mjs off
+node ac-control.mjs temp 25
+node ac-control.mjs unit-on VAV_01
+node ac-control.mjs unit-off VAV_01
+node ac-control.mjs unit-temp VAV_01 25
+```
+
+Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses forced opening and is not blocked by holidays.
+
+### Safety Notes
+
+- Do not commit `.env`; it contains site-specific URLs, accounts, and point configuration.
+- Do not store real passwords in source files. macOS uses Keychain; Windows uses the local ignored `.env` file or process environment.
+- Whole-system `off`, `on`, and `temp` commands verify all configured VAV units after applying changes and retry once if needed.
+- The watchdog only restores the local panel and scheduler; it does not actively turn AC units on or off.
