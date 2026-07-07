@@ -30,6 +30,8 @@ cp .env.example .env
 
 2. 编辑 `.env`，填入 Niagara 地址、账号、点位 ORD、VAV 列表、面板标题等本地配置。
 
+如果需要让手机或局域网其他电脑访问面板，把 `.env` 里的 `AC_PANEL_HOST` 改成 `0.0.0.0`，然后用部署电脑的局域网 IP 访问。
+
 3. 安装定时任务和本地面板。
 
 macOS 会安装 LaunchAgent，并把密码保存到 Keychain：
@@ -47,6 +49,16 @@ node install-windows.mjs
 Windows 任务计划程序按 Windows 系统时区触发。如果要让 `09:30` 和 `17:50` 表示北京时间，请把 Windows 时区设为中国时间。
 
 安装脚本会同时安装看门狗。看门狗每 30 分钟检查一次本地面板和定时任务；如果你在面板里手动关闭定时任务，它不会把定时任务强行重新开启。
+
+卸载本机面板、定时任务和看门狗：
+
+```sh
+node uninstall-launchd.mjs
+```
+
+```powershell
+node uninstall-windows.mjs
+```
 
 4. 打开本地面板：
 
@@ -71,9 +83,12 @@ node ac-control.mjs unit-on VAV_01
 node ac-control.mjs unit-off VAV_01
 node ac-control.mjs unit-temp VAV_01 25
 node doctor.mjs
+node --test
 ```
 
 定时 `on` 会跳过周末和中国节假日。面板里的手动“打开空调”会使用强制打开，不受节假日限制。
+
+每次打开、关闭、设置温度或节假日跳过都会记录到本机 `runtime-state.json`，诊断页会显示最近一次执行结果。如果配置了 `AC_NOTIFY_WEBHOOK`，控制失败或看门狗异常会发送 JSON 通知。
 
 ### 安全说明
 
@@ -83,3 +98,4 @@ node doctor.mjs
 - 看门狗只负责恢复本地面板和调度任务，不会主动执行打开或关闭空调。
 - 面板错误只显示错误编号，详细错误写入本机 `logs/panel.err.log`。
 - 看门狗会清理 7 天前的日志文件。
+- `runtime-state.json` 只保存在本机，并已被 `.gitignore` 忽略。

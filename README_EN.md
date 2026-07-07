@@ -30,6 +30,8 @@ cp .env.example .env
 
 2. Edit `.env` with your Niagara URL, username, point ORDs, VAV list, and panel title.
 
+To access the panel from a phone or another LAN device, set `AC_PANEL_HOST=0.0.0.0` in `.env`, then open the deploying computer's LAN IP.
+
 3. Install the scheduler and local panel.
 
 On macOS, this installs LaunchAgent jobs and stores the password in Keychain:
@@ -47,6 +49,16 @@ node install-windows.mjs
 Windows Task Scheduler triggers by the Windows system time zone. Keep the Windows time zone set to China time for `09:30` and `17:50` to mean Beijing time.
 
 The installer also installs a watchdog. It checks the local panel and scheduled jobs every 30 minutes. If you manually disable the schedule from the panel, the watchdog will not force it back on.
+
+Uninstall the local panel, schedules, and watchdog:
+
+```sh
+node uninstall-launchd.mjs
+```
+
+```powershell
+node uninstall-windows.mjs
+```
 
 4. Open the local panel:
 
@@ -71,9 +83,12 @@ node ac-control.mjs unit-on VAV_01
 node ac-control.mjs unit-off VAV_01
 node ac-control.mjs unit-temp VAV_01 25
 node doctor.mjs
+node --test
 ```
 
 Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses forced opening and is not blocked by holidays.
+
+Every on, off, temperature change, or holiday skip is recorded in the local `runtime-state.json`; the diagnostics page shows the latest run result. If `AC_NOTIFY_WEBHOOK` is configured, control failures and watchdog failures send JSON notifications.
 
 ### Safety Notes
 
@@ -83,3 +98,4 @@ Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses 
 - The watchdog only restores the local panel and scheduler; it does not actively turn AC units on or off.
 - Panel errors only show an error ID; detailed errors are written to the local `logs/panel.err.log`.
 - The watchdog removes log files older than 7 days.
+- `runtime-state.json` stays local and is ignored by `.gitignore`.

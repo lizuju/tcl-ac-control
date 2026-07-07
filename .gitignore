@@ -9,3 +9,4 @@ logs/
 out/
 holiday-cache/
 .ac-control.lock/
+runtime-state.json

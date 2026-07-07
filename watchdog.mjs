@@ -26,9 +26,9 @@ import {
   taskNames,
   writeWindowsScheduleJob,
 } from "./windows-scheduler.mjs";
+import { notify } from "./notify.mjs";
+import { panelLocalUrl as panelUrl } from "./panel-config.mjs";
 
-const port = Number(process.env.AC_PANEL_PORT || 3033);
-const panelUrl = `http://127.0.0.1:${port}/`;
 const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 const controlScriptPath = path.join(here, "ac-control.mjs");
@@ -74,8 +74,7 @@ async function panelHealthy() {
 function macSchedulePlist(label, action, hour, minute) {
   const command = [
     `cd ${sh(here)}`,
-    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)"`,
-    `${sh(nodePath)} ${sh(controlScriptPath)} ${action}`,
+    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)" AC_RUN_SOURCE=schedule ${sh(nodePath)} ${sh(controlScriptPath)} ${action}`,
   ].join(" && ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -140,6 +139,7 @@ async function ensureMacPanel() {
   await fs.writeFile(plistPathFor(panelLabel), macPanelPlist());
   await loadAgent(panelLabel, plistPathFor(panelLabel), true);
   log("restarted macOS panel");
+  await notify("AC panel restarted", { platform: "macOS", panelUrl });
 }
 
 async function ensureMacScheduleJob(action) {
@@ -171,6 +171,7 @@ async function windowsWatchdog() {
       await runWindowsPanelTask();
     }
     log("started Windows panel task");
+    await notify("AC panel restarted", { platform: "Windows", panelUrl });
   }
 
   const schedule = await readWindowsSchedule();
@@ -187,12 +188,17 @@ async function windowsWatchdog() {
   log("verified Windows schedule tasks");
 }
 
-await cleanupLogs();
+try {
+  await cleanupLogs();
 
-if (process.platform === "darwin") {
-  await macWatchdog();
-} else if (process.platform === "win32") {
-  await windowsWatchdog();
-} else {
-  throw new Error("Watchdog supports macOS and Windows only");
+  if (process.platform === "darwin") {
+    await macWatchdog();
+  } else if (process.platform === "win32") {
+    await windowsWatchdog();
+  } else {
+    throw new Error("Watchdog supports macOS and Windows only");
+  }
+} catch (error) {
+  await notify("AC watchdog failed", { error: error.stack || error.message });
+  throw error;
 }

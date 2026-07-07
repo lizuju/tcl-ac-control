@@ -5,6 +5,8 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
+import { notify } from "./notify.mjs";
+import { recordRun } from "./runtime-state.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -668,6 +670,7 @@ async function password() {
 
 const action = process.argv[2] || "status";
 const force = process.argv.includes("--force") || process.env.AC_FORCE === "1";
+const runSource = process.env.AC_RUN_SOURCE || "manual";
 jsonOutput = process.argv.includes("--json");
 if (!["status", "on", "off", "temp", "unit-on", "unit-off", "unit-temp"].includes(action)) {
   throw new Error("Usage: node ac-control.mjs status|on|off|temp [value]|unit-on [unit]|unit-off [unit]|unit-temp [unit] [value] [--force] [--json]");
@@ -683,10 +686,19 @@ if (action === "unit-temp" && (!Number.isFinite(tempValue) || tempValue < 16 || 
   throw new Error("Temperature must be a number from 16 to 30");
 }
 
+function errorDetail(error) {
+  return [
+    error.message,
+    error.stdout && `stdout: ${error.stdout}`,
+    error.stderr && `stderr: ${error.stderr}`,
+  ].filter(Boolean).join("\n");
+}
+
 if (action === "on" && !force) {
   const reason = await skipOpeningReason();
   if (reason) {
     log(`Skip opening: ${reason}`);
+    await recordRun({ action, source: runSource, ok: true, skipped: true, detail: reason });
     process.exit(0);
   }
 }
@@ -718,6 +730,21 @@ try {
   } else {
     await openWithVerification();
   }
+
+  if (action !== "status") {
+    await recordRun({ action, source: runSource, ok: true, detail: "completed" });
+  }
+} catch (error) {
+  if (action !== "status") {
+    const entry = await recordRun({ action, source: runSource, ok: false, error: errorDetail(error) });
+    await notify("AC control failed", {
+      id: entry.id,
+      action,
+      source: runSource,
+      error: errorDetail(error),
+    });
+  }
+  throw error;
 } finally {
   await unlock?.();
 }

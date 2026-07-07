@@ -41,7 +41,7 @@ async function runSchtasks(args) {
   });
 }
 
-async function writeTaskScript(name, scriptPath, args) {
+async function writeTaskScript(name, scriptPath, args, env = {}) {
   await fs.mkdir(taskDir, { recursive: true });
   await fs.mkdir(logsDir, { recursive: true });
   const stdout = path.join(logsDir, `${name}.log`);
@@ -49,6 +49,7 @@ async function writeTaskScript(name, scriptPath, args) {
   const body = [
     "@echo off",
     `cd /d ${cmdQuote(here)}`,
+    ...Object.entries(env).map(([key, value]) => `set "${key}=${value}"`),
     `${cmdQuote(nodePath)} ${cmdQuote(scriptPath)} ${args.join(" ")} >> ${cmdQuote(stdout)} 2>> ${cmdQuote(stderr)}`,
     "",
   ].join("\r\n");
@@ -92,7 +93,7 @@ async function readWindowsJob(action) {
 
 export async function writeWindowsScheduleJob(action, time) {
   const { value } = parseTime(time);
-  await writeTaskScript(action, controlScriptPath, [action]);
+  await writeTaskScript(action, controlScriptPath, [action], { AC_RUN_SOURCE: "schedule" });
   await runSchtasks([
     "/Create",
     "/TN",

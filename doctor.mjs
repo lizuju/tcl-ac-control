@@ -18,12 +18,13 @@ import {
   readWindowsTask,
   taskNames,
 } from "./windows-scheduler.mjs";
+import { panelListenUrl, panelLocalUrl } from "./panel-config.mjs";
+import { readRuntimeState } from "./runtime-state.mjs";
 
 const execFileAsync = promisify(execFile);
-const port = Number(process.env.AC_PANEL_PORT || 3033);
-const panelUrl = `http://127.0.0.1:${port}/`;
 const holidayApi = process.env.AC_HOLIDAY_API || "https://api.jiejiariapi.com/v1/holidays";
 const holidayCacheDir = process.env.AC_HOLIDAY_CACHE_DIR || path.join(here, "holiday-cache");
+const logsDir = path.join(here, "logs");
 const requiredKeys = [
   "AC_BASE_URL",
   "AC_USERNAME",
@@ -47,7 +48,7 @@ async function panelHealthy() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(panelUrl, { method: "HEAD", signal: controller.signal });
+    const response = await fetch(panelLocalUrl, { method: "HEAD", signal: controller.signal });
     return response.ok;
   } catch {
     return false;
@@ -162,12 +163,30 @@ async function passwordCheck() {
   return check("密码配置", ok, ok ? "AC_PASSWORD 已配置" : "AC_PASSWORD 未配置");
 }
 
+async function recentLogSummary() {
+  const files = ["panel.err.log", "watchdog.err.log", "on.err.log", "off.err.log"];
+  const result = [];
+  for (const file of files) {
+    try {
+      const lines = (await fs.readFile(path.join(logsDir, file), "utf8"))
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .slice(-20)
+        .map(clean);
+      if (lines.length) result.push({ file, lines });
+    } catch (error) {
+      if (error.code !== "ENOENT") result.push({ file, lines: [clean(error.message)] });
+    }
+  }
+  return result;
+}
+
 export async function readDiagnostics() {
   const missing = requiredKeys.filter((key) => !process.env[key]);
   const checks = [
     check("基础配置", missing.length === 0, missing.length ? `缺少 ${missing.join(", ")}` : "必要配置已填写"),
     await passwordCheck(),
-    check("本地面板", await panelHealthy(), `${panelUrl}`),
+    check("本地面板", await panelHealthy(), `${panelLocalUrl}`),
     await panelTaskCheck(),
     await scheduleCheck(),
     await watchdogCheck(),
@@ -178,20 +197,27 @@ export async function readDiagnostics() {
   return {
     generatedAt: new Date().toISOString(),
     platform: process.platform,
-    panelUrl,
+    panelUrl: panelLocalUrl,
+    listenUrl: panelListenUrl,
     ok: checks.every((item) => item.ok),
     checks,
+    runtime: await readRuntimeState(),
+    recentLogs: await recentLogSummary(),
   };
 }
 
 function printDiagnostics(data) {
   console.log(`诊断时间：${data.generatedAt}`);
   console.log(`运行平台：${data.platform}`);
-  console.log(`面板地址：${data.panelUrl}`);
+  console.log(`面板地址：${data.listenUrl}`);
   for (const item of data.checks) {
     console.log(`${item.ok ? "OK" : "FAIL"} ${item.name}：${item.detail}`);
   }
   console.log(`总体状态：${data.ok ? "OK" : "FAIL"}`);
+  if (data.runtime?.last) {
+    const last = data.runtime.last;
+    console.log(`上次执行：${last.action} ${last.ok ? "OK" : "FAIL"} ${last.skipped ? "SKIPPED" : ""} ${last.detail || last.error}`);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { requiredEnv } from "./env.mjs";
+import { panelListenUrl } from "./panel-config.mjs";
 import {
   execFileAsync,
   here,
@@ -76,8 +77,7 @@ async function keychainPassword() {
 function schedulePlist(label, action, hour, minute) {
   const command = [
     `cd ${sh(here)}`,
-    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)"`,
-    `${sh(nodePath)} ${sh(controlScriptPath)} ${action}`,
+    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)" AC_RUN_SOURCE=schedule ${sh(nodePath)} ${sh(controlScriptPath)} ${action}`,
   ].join(" && ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -214,4 +214,4 @@ console.log(`Installed ${onPath} at ${onTime}`);
 console.log(`Installed ${offPath} at ${offTime}`);
 console.log(`Installed ${panelPath}`);
 console.log(`Installed ${watchdogPath} every 30 minutes`);
-console.log("Panel URL: http://127.0.0.1:3033/");
+console.log(`Panel URL: ${panelListenUrl}`);

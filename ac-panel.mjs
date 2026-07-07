@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
 import { readDiagnostics } from "./doctor.mjs";
+import { panelHost as host, panelListenUrl, panelLocalUrl, panelPort as port } from "./panel-config.mjs";
 import {
   domain,
   execFileAsync as launchdExecFileAsync,
@@ -30,8 +31,6 @@ import {
 
 const execFileAsync = promisify(execFile);
 const scriptPath = path.join(here, "ac-control.mjs");
-const host = "127.0.0.1";
-const port = Number(process.env.AC_PANEL_PORT || 3033);
 const panelTitle = process.env.AC_PANEL_TITLE || "AC Control";
 const unitColumns = (process.env.AC_PANEL_UNIT_COLUMNS || "")
   .split("|")
@@ -77,8 +76,7 @@ async function sendError(res, scope, error) {
 function plist(label, action, hour, minute) {
   const command = [
     `cd ${sh(here)}`,
-    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)"`,
-    `${sh(nodePath)} ${sh(scriptPath)} ${action}`,
+    `AC_PASSWORD="$(/usr/bin/security find-generic-password -s ${sh(keychainService)} -a ${sh(username)} -w)" AC_RUN_SOURCE=schedule ${sh(nodePath)} ${sh(scriptPath)} ${action}`,
   ].join(" && ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -541,6 +539,13 @@ function diagnosticsHtml(data) {
   const rows = data.checks.map((item) => (
     `<tr><td>${item.ok ? "OK" : "FAIL"}</td><td>${xml(item.name)}</td><td>${xml(item.detail)}</td></tr>`
   )).join("");
+  const last = data.runtime?.last;
+  const lastText = last
+    ? `${last.at} ${last.source || "manual"} ${last.action} ${last.ok ? "OK" : "FAIL"}${last.skipped ? " SKIPPED" : ""} ${last.detail || last.error || ""}`
+    : "暂无记录";
+  const logBlocks = (data.recentLogs || []).map((item) => (
+    `<h2>${xml(item.file)}</h2><pre>${xml(item.lines.join("\n"))}</pre>`
+  )).join("") || "<div>暂无错误日志</div>";
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -558,11 +563,13 @@ function diagnosticsHtml(data) {
     th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
     th { color: #475569; font-size: 14px; }
     tr:last-child td { border-bottom: 0; }
+    pre { margin: 0; padding: 12px; overflow: auto; background: white; border: 1px solid #cbd5e1; border-radius: 8px; line-height: 1.45; }
     @media (prefers-color-scheme: dark) {
       body { background: #111418; color: #f3f4f6; }
       table { background: #1f2937; border-color: #475569; }
       th, td { border-color: #334155; }
       th { color: #cbd5e1; }
+      pre { background: #1f2937; border-color: #475569; }
     }
   </style>
 </head>
@@ -571,11 +578,17 @@ function diagnosticsHtml(data) {
     <a href="/">返回控制面板</a>
     <h1>系统诊断：${data.ok ? "OK" : "FAIL"}</h1>
     <div>生成时间：${xml(data.generatedAt)}</div>
-    <div>面板地址：${xml(data.panelUrl)}</div>
+    <div>面板监听：${xml(data.listenUrl || data.panelUrl)}</div>
+    <div>本机检测：${xml(data.panelUrl)}</div>
+    <h2>检查项</h2>
     <table>
       <thead><tr><th>状态</th><th>项目</th><th>说明</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <h2>上次执行</h2>
+    <pre>${xml(lastText)}</pre>
+    <h2>最近错误日志</h2>
+    ${logBlocks}
   </main>
 </body>
 </html>`;
@@ -600,6 +613,7 @@ async function control(action, value) {
   if (action === "on") args.push("--force");
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
     cwd: here,
+    env: { ...process.env, AC_RUN_SOURCE: "panel" },
     timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
@@ -616,6 +630,7 @@ async function controlUnit(unit, action, value) {
   }
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
     cwd: here,
+    env: { ...process.env, AC_RUN_SOURCE: "panel" },
     timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
@@ -634,7 +649,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const url = new URL(req.url || "/", `http://${host}:${port}`);
+  const url = new URL(req.url || "/", panelLocalUrl);
   if (req.method === "GET" && url.pathname === "/doctor") {
     try {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -728,5 +743,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AC panel: http://${host}:${port}/`);
+  console.log(`AC panel: ${panelListenUrl}`);
 });
