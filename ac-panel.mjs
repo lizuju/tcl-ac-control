@@ -294,7 +294,7 @@ function html() {
       .state { gap: 10px; }
       .stateSummary { display: none; }
       .stateHeader h2 { font-size: 17px; }
-      #refreshStatus { height: 38px; }
+      #refreshStatus { display: none; }
       .unitGrid { grid-template-columns: 1fr; }
       .unit { padding: 10px; gap: 8px; }
       .unitTop { gap: 8px; }
@@ -306,6 +306,9 @@ function html() {
       .unitControls button, .unitControls select { height: 40px; font-size: 14px; }
       .unitControls button { padding: 0 6px; }
       #status { min-height: 32px; }
+    }
+    @media (max-width: 420px) {
+      .unitTempRow { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       .unitGrid { grid-template-columns: 1fr; }
@@ -571,6 +574,10 @@ function html() {
       }
     }
 
+    async function refreshAllStatus() {
+      await Promise.allSettled([refreshSchedule(), refreshAcStatus()]);
+    }
+
     async function run(action) {
       document.querySelectorAll("button").forEach((button) => button.disabled = true);
       status.textContent = "执行中...";
@@ -588,7 +595,7 @@ function html() {
 
     powerToggle.addEventListener("click", () => run(powerToggle.dataset.action || "on"));
     remotePower.addEventListener("click", () => run(remotePower.dataset.action || "on"));
-    document.querySelector("#remoteRefresh").addEventListener("click", refreshAcStatus);
+    document.querySelector("#remoteRefresh").addEventListener("click", refreshAllStatus);
     document.querySelector("#remoteTempMinus").addEventListener("click", () => setTemperatureValue(Number(selectedTemperature) - 1));
     document.querySelector("#remoteTempPlus").addEventListener("click", () => setTemperatureValue(Number(selectedTemperature) + 1));
     document.querySelector("#remoteTempSave").addEventListener("click", () => {
@@ -605,7 +612,7 @@ function html() {
       const value = temperatureSelect.value;
       run("temp?value=" + encodeURIComponent(value));
     });
-    document.querySelector("#refreshStatus").addEventListener("click", refreshAcStatus);
+    document.querySelector("#refreshStatus").addEventListener("click", refreshAllStatus);
     scheduleInfo.addEventListener("click", async () => {
       showScheduleInfo = !showScheduleInfo;
       await refreshSchedule();
@@ -653,8 +660,7 @@ function html() {
       }
     });
 
-    refreshSchedule().catch(() => {});
-    refreshAcStatus();
+    refreshAllStatus();
   </script>
 </body>
 </html>`;
