@@ -189,15 +189,17 @@ function html() {
     .unitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
     .unitColumn { display: grid; gap: 10px; }
     .unit { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: white; display: grid; gap: 8px; }
-    .unitTop { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: center; }
-    .unitBadge { display: grid; place-items: center; width: 64px; height: 36px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; box-sizing: border-box; }
+    .unitTop { display: flex; gap: 10px; align-items: center; min-width: 0; }
+    .unitInfo { min-width: 0; }
+    .unitBadge { display: grid; place-items: center; flex: 0 0 auto; min-width: 82px; height: 36px; padding: 0 6px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; box-sizing: border-box; }
     .unitTempValue { font-size: 13px; font-weight: 800; color: #0f172a; line-height: 1; text-align: center; white-space: nowrap; }
     .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
     .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
-    .unitTempRow { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; grid-column: 1 / -1; }
+    .unitTempRow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(96px, 1fr); gap: 6px; grid-column: 1 / -1; }
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
+    .unitControls button { padding: 0 8px; white-space: nowrap; }
     .unitToggle { grid-column: 1 / -1; }
     .unitToggleOn { background: #b42318; }
     .unitToggleOff { background: #177245; }
@@ -262,6 +264,7 @@ function html() {
       </section>
       <section class="controls">
         <div class="panel">
+          <h2>空调总开关</h2>
           <button id="powerToggle" class="powerToggleOn" type="button" data-action="on">打开空调</button>
         </div>
         <div class="temp">
@@ -365,7 +368,7 @@ function html() {
             '<div class="unitBadge">' +
               '<div class="unitTempValue">' + escapeHtml(badgeTemperature) + '</div>' +
             '</div>' +
-            '<div>' +
+            '<div class="unitInfo">' +
               '<div class="unitName">' + escapeHtml(unit.name) + '</div>' +
               '<div class="unitMeta">' + escapeHtml(unit.mode) + '</div>' +
             '</div>' +
