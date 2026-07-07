@@ -12,6 +12,7 @@ Deployment scope: internal AC control for TCL Building, Pazhou Street, Haizhu Di
 
 - More intuitive operation: on, off, temperature, and status are all available in one panel.
 - Simpler workflow: common actions are exposed as clear buttons instead of searching through the original system pages and points.
+- Mobile remote-style control: small screens switch to a large power button, temperature stepper, and quick shortcuts.
 - Whole-system control: all configured AC units can be controlled together, while overriding previous per-unit settings when needed.
 - Per-unit control: each AC unit has its own on, off, and temperature controls.
 - Visual schedule management: open/close times and schedule enablement can be adjusted directly from the panel.

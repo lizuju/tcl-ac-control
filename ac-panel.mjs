@@ -206,6 +206,27 @@ function html() {
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 0; background: #f5f7f8; color: #172026; box-sizing: border-box; }
     main { width: min(980px, calc(100vw - 32px)); }
     h1 { margin: 0 0 20px; font-size: 28px; font-weight: 700; letter-spacing: 0; }
+    .remote { display: none; }
+    .remoteCard { display: grid; gap: 14px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
+    .remoteStatusRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .remoteStatusText { display: grid; gap: 8px; min-width: 0; }
+    .remoteStatusTitle { font-size: 13px; line-height: 1; font-weight: 700; color: #64748b; }
+    .remoteMeta { min-width: 0; color: #344054; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .remotePower { height: 88px; font-size: 28px; }
+    .remotePower.powerToggleOn { background: #b42318; }
+    .remotePower.powerToggleOff { background: #177245; }
+    .remoteTemperature { display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px; gap: 8px; }
+    .remoteStep { height: 56px; background: #334155; font-size: 30px; line-height: 1; }
+    .remoteTempValue { display: grid; place-items: center; height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #172026; font-size: 28px; font-weight: 800; box-sizing: border-box; }
+    .remoteTempSave { height: 54px; background: #175cd3; font-size: 18px; }
+    .remoteSchedule { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: #344054; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .remoteSchedule.runningSchedule { color: #166534; }
+    .remoteSchedule.disabledSchedule { color: #991b1b; }
+    .remoteSchedule.errorSchedule { color: #92400e; }
+    .remoteNavGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .remoteNav { display: grid; place-items: center; height: 44px; padding: 0 6px; border-radius: 8px; background: #e2e8f0; color: #172026; font-size: 14px; font-weight: 700; text-decoration: none; box-sizing: border-box; }
+    button.remoteNav { color: #172026; }
+    .remoteRefresh { height: 36px; padding: 0 12px; background: #475569; font-size: 14px; }
     .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .85fr); gap: 24px; align-items: start; }
     .controls { display: grid; gap: 12px; }
     .panel { display: grid; gap: 12px; }
@@ -227,10 +248,10 @@ function html() {
     .unitName { font-size: 13px; font-weight: 800; color: #172026; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .unitMeta { font-size: 12px; color: #475569; margin-top: 2px; }
     .unitControls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
-    .unitTempRow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(96px, 1fr); gap: 6px; grid-column: 1 / -1; }
+    .unitTempRow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(104px, 1fr); gap: 6px; grid-column: 1 / -1; }
     .unitControls button, .unitControls select { height: 34px; font-size: 13px; border-radius: 8px; }
     .unitControls select { padding: 0 8px; }
-    .unitControls button { padding: 0 8px; white-space: nowrap; }
+    .unitControls button { padding: 0 6px; white-space: nowrap; }
     .unitToggle { grid-column: 1 / -1; }
     .unitToggleOn { background: #b42318; }
     .unitToggleOff { background: #177245; }
@@ -259,8 +280,32 @@ function html() {
     #scheduleToggle.disabledSchedule { background: #177245; }
     #refreshStatus { height: 40px; padding: 0 14px; font-size: 15px; background: #475569; }
     #status { min-height: 52px; white-space: pre-wrap; font-size: 15px; line-height: 1.45; color: #344054; }
-    @media (max-width: 820px) {
+    @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      body { display: block; min-height: 100vh; padding: 24px 0 28px; }
+      main { width: min(460px, calc(100vw - 24px)); margin: 0 auto; }
+      h1 { margin-bottom: 16px; font-size: 28px; line-height: 1.15; }
+      .remote { display: grid; gap: 12px; margin-bottom: 18px; }
+      .layout { display: block; }
+      .controls { margin-top: 18px; }
+      .controls .panel, .controls > .temp { display: none; }
+      .state { gap: 10px; }
+      .stateSummary { display: none; }
+      .stateHeader h2 { font-size: 17px; }
+      #refreshStatus { height: 38px; }
+      .unitGrid { grid-template-columns: 1fr; }
+      .unit { padding: 10px; gap: 8px; }
+      .unitTop { gap: 8px; }
+      .unitBadge { width: 76px; min-width: 76px; height: 34px; }
+      .unitTempValue { font-size: 13px; }
+      .unitName { font-size: 15px; }
+      .unitControls { gap: 8px; }
+      .unitTempRow { grid-template-columns: minmax(0, 2fr) minmax(112px, 1fr); gap: 8px; }
+      .unitControls button, .unitControls select { height: 40px; font-size: 14px; }
+      .unitControls button { padding: 0 6px; }
+      #status { min-height: 32px; }
     }
     @media (max-width: 560px) {
       .unitGrid { grid-template-columns: 1fr; }
@@ -271,6 +316,14 @@ function html() {
       label { color: #cbd5e1; }
       #scheduleInfo { background: #334155; color: #f8fafc; }
       select, input { background: #1f2937; color: #f3f4f6; border-color: #475569; }
+      .remoteCard { background: #1f2937; border-color: #475569; }
+      .remoteStatusTitle, .remoteMeta, .remoteSchedule { color: #cbd5e1; }
+      .remoteSchedule.runningSchedule { color: #86efac; }
+      .remoteSchedule.disabledSchedule { color: #fca5a5; }
+      .remoteSchedule.errorSchedule { color: #fbbf24; }
+      .remoteTempValue { background: #1f2937; color: #f8fafc; border-color: #475569; }
+      .remoteNav { background: #334155; color: #f8fafc; }
+      button.remoteNav { color: #f8fafc; }
       .unit { background: #1f2937; border-color: #475569; }
       .unitBadge { background: #172033; border-color: #3b82f6; }
       .unitTempValue { color: #f8fafc; }
@@ -284,6 +337,31 @@ function html() {
 <body>
   <main>
     <h1>${xml(panelTitle)}</h1>
+    <section class="remote" aria-label="手机遥控器">
+      <div class="remoteCard">
+        <div class="remoteStatusRow">
+          <div class="remoteStatusText">
+            <div class="remoteStatusTitle">当前状态</div>
+            <div id="remoteState" class="statePill"><span class="dot"></span>读取中</div>
+          </div>
+          <button id="remoteRefresh" class="remoteRefresh" type="button">刷新</button>
+        </div>
+        <div id="remoteMeta" class="remoteMeta">正在读取空调状态...</div>
+        <button id="remotePower" class="remotePower powerToggleOn" type="button" data-action="on">打开空调</button>
+        <div class="remoteTemperature" aria-label="温度控制">
+          <button id="remoteTempMinus" class="remoteStep" type="button">-</button>
+          <div id="remoteTempValue" class="remoteTempValue">22 °C</div>
+          <button id="remoteTempPlus" class="remoteStep" type="button">+</button>
+        </div>
+        <button id="remoteTempSave" class="remoteTempSave" type="button">保存温度</button>
+        <div id="remoteSchedule" class="remoteSchedule"><span class="dot"></span>定时读取中</div>
+        <div class="remoteNavGrid">
+          <button class="remoteNav" type="button" data-scroll="#unitGrid">单台空调</button>
+          <button class="remoteNav" type="button" data-scroll=".schedule">定时任务</button>
+          <a class="remoteNav" href="/doctor">系统诊断</a>
+        </div>
+      </div>
+    </section>
     <div class="layout">
       <section class="state">
         <div class="stateHeader">
@@ -346,6 +424,11 @@ function html() {
     const unitGrid = document.querySelector("#unitGrid");
     const powerToggle = document.querySelector("#powerToggle");
     const temperatureSelect = document.querySelector("#temperature");
+    const remoteState = document.querySelector("#remoteState");
+    const remoteMeta = document.querySelector("#remoteMeta");
+    const remotePower = document.querySelector("#remotePower");
+    const remoteTempValue = document.querySelector("#remoteTempValue");
+    const remoteSchedule = document.querySelector("#remoteSchedule");
     const scheduleOn = document.querySelector("#scheduleOn");
     const scheduleOff = document.querySelector("#scheduleOff");
     const scheduleToggle = document.querySelector("#scheduleToggle");
@@ -355,6 +438,7 @@ function html() {
     const temps = Array.from({ length: 13 }, (_, index) => String(index + 18));
     const unitColumns = ${JSON.stringify(unitColumns)};
     let showScheduleInfo = false;
+    let selectedTemperature = temperatureSelect.value;
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -366,6 +450,23 @@ function html() {
       })[char]);
     }
 
+    function syncPowerButton(button, allOff) {
+      const powerAction = allOff ? "on" : "off";
+      button.textContent = allOff ? "打开空调" : "关闭空调";
+      button.dataset.action = powerAction;
+      button.classList.toggle("powerToggleOn", powerAction === "on");
+      button.classList.toggle("powerToggleOff", powerAction === "off");
+    }
+
+    function setTemperatureValue(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return;
+      const next = String(Math.max(18, Math.min(30, Math.round(numeric))));
+      selectedTemperature = next;
+      temperatureSelect.value = next;
+      remoteTempValue.textContent = next + " °C";
+    }
+
     function renderAcStatus(data) {
       const allOff = data.closed;
       const className = allOff ? "offState" : data.activeUnits > 0 ? "onState" : "";
@@ -375,11 +476,11 @@ function html() {
         '<span>模式 ' + escapeHtml(data.mode) + '</span>' +
         '<span>温度 ' + escapeHtml(data.temperature) + '</span>' +
         '<span>' + data.activeUnits + '/' + data.totalUnits + ' 台占用</span>';
-      const powerAction = allOff ? "on" : "off";
-      powerToggle.textContent = allOff ? "打开空调" : "关闭空调";
-      powerToggle.dataset.action = powerAction;
-      powerToggle.classList.toggle("powerToggleOn", powerAction === "on");
-      powerToggle.classList.toggle("powerToggleOff", powerAction === "off");
+      remoteState.className = "statePill " + className;
+      remoteState.innerHTML = '<span class="dot"></span>' + label;
+      remoteMeta.textContent = "模式 " + data.mode + " · 温度 " + data.temperature + " · " + data.activeUnits + "/" + data.totalUnits + " 台占用";
+      syncPowerButton(powerToggle, allOff);
+      syncPowerButton(remotePower, allOff);
       const byName = new Map(data.units.map((unit) => [unit.name, unit]));
       const columns = unitColumns.length ? unitColumns : [data.units.map((unit) => unit.name)];
       const orderedUnits = columns.map((column) => column.map((name) => byName.get(name)).filter(Boolean));
@@ -418,6 +519,7 @@ function html() {
         .join("");
       const temp = String(Math.round(Number.parseFloat(data.temperature)));
       if (temperatureSelect.querySelector('option[value="' + temp + '"]')) temperatureSelect.value = temp;
+      setTemperatureValue(temp);
     }
 
     function renderSchedule(data) {
@@ -427,6 +529,10 @@ function html() {
       scheduleStatus.innerHTML = '<span class="dot"></span>' + (state === "running" ? "运行中" : state === "error" ? "异常" : "已关闭");
       scheduleStatus.classList.toggle("disabledSchedule", state === "disabled");
       scheduleStatus.classList.toggle("errorSchedule", state === "error");
+      remoteSchedule.innerHTML = '<span class="dot"></span>' + (state === "running" ? "定时运行中" : state === "error" ? "定时异常" : "定时已关闭") + " · " + data.on + " / " + data.off;
+      remoteSchedule.classList.toggle("runningSchedule", state === "running");
+      remoteSchedule.classList.toggle("disabledSchedule", state === "disabled");
+      remoteSchedule.classList.toggle("errorSchedule", state === "error");
       scheduleToggle.textContent = data.enabled ? "关闭定时任务" : "开启定时任务";
       scheduleToggle.classList.toggle("disabledSchedule", state === "running");
       scheduleToggle.dataset.enabled = String(state === "running");
@@ -450,6 +556,8 @@ function html() {
 
     async function refreshAcStatus() {
       stateSummary.textContent = "读取中...";
+      remoteState.innerHTML = '<span class="dot"></span>读取中';
+      remoteMeta.textContent = "正在读取空调状态...";
       try {
         const response = await fetch("/api/status");
         if (!response.ok) throw new Error(await response.text());
@@ -457,6 +565,9 @@ function html() {
         renderAcStatus(data);
       } catch (error) {
         stateSummary.textContent = "状态读取失败：" + error.message;
+        remoteState.className = "statePill";
+        remoteState.innerHTML = '<span class="dot"></span>读取失败';
+        remoteMeta.textContent = error.message;
       }
     }
 
@@ -476,6 +587,20 @@ function html() {
     }
 
     powerToggle.addEventListener("click", () => run(powerToggle.dataset.action || "on"));
+    remotePower.addEventListener("click", () => run(remotePower.dataset.action || "on"));
+    document.querySelector("#remoteRefresh").addEventListener("click", refreshAcStatus);
+    document.querySelector("#remoteTempMinus").addEventListener("click", () => setTemperatureValue(Number(selectedTemperature) - 1));
+    document.querySelector("#remoteTempPlus").addEventListener("click", () => setTemperatureValue(Number(selectedTemperature) + 1));
+    document.querySelector("#remoteTempSave").addEventListener("click", () => {
+      run("temp?value=" + encodeURIComponent(selectedTemperature));
+    });
+    document.querySelectorAll("[data-scroll]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = document.querySelector(button.dataset.scroll);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    temperatureSelect.addEventListener("change", () => setTemperatureValue(temperatureSelect.value));
     document.querySelector("#tempSet").addEventListener("click", () => {
       const value = temperatureSelect.value;
       run("temp?value=" + encodeURIComponent(value));
