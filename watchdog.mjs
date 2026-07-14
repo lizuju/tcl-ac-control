@@ -49,8 +49,16 @@ async function cleanupLogs() {
       const filePath = path.join(logsDir, entry.name);
       const stat = await fs.stat(filePath);
       if (stat.mtimeMs >= cutoff) continue;
-      await fs.unlink(filePath);
-      removed += 1;
+      try {
+        await fs.unlink(filePath);
+        removed += 1;
+      } catch (error) {
+        if (error.code === "EBUSY" || error.code === "EPERM") {
+          log(`skipped locked old log ${entry.name}`);
+          continue;
+        }
+        throw error;
+      }
     }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;

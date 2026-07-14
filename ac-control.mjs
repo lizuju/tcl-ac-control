@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
 import { notify } from "./notify.mjs";
 import { recordRun } from "./runtime-state.mjs";
+import { controlRetryConfig, retryAsync } from "./retry.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,6 +46,13 @@ let jsonOutput = false;
 
 function log(message) {
   if (!jsonOutput) console.log(message);
+}
+
+function resetSession() {
+  jar.clear();
+  requestId = 0;
+  frameId = 0;
+  serverSessionId = null;
 }
 
 function chinaToday() {
@@ -705,31 +713,41 @@ if (action === "on" && !force) {
 
 const unlock = action === "status" ? null : await acquireControlLock();
 try {
-  await login(await password());
-  await startBoxSession();
+  const retryConfig = controlRetryConfig({ action, source: runSource });
+  await retryAsync(async () => {
+    resetSession();
+    await login(await password());
+    await startBoxSession();
 
-  if (action === "status") {
-    const status = await readSystemStatus();
-    if (jsonOutput) {
-      console.log(JSON.stringify(status));
+    if (action === "status") {
+      const status = await readSystemStatus();
+      if (jsonOutput) {
+        console.log(JSON.stringify(status));
+      } else {
+        log(`Mode: ${status.mode}`);
+        log(`Temperature: ${status.temperature}`);
+        log(`Units occupied: ${status.activeUnits}/${status.totalUnits}`);
+      }
+    } else if (action === "temp") {
+      await setTemperatureWithVerification(tempValue);
+    } else if (action === "off") {
+      await closeWithVerification();
+    } else if (action === "unit-on") {
+      await setUnitModeWithVerification(unitName, "on");
+    } else if (action === "unit-off") {
+      await setUnitModeWithVerification(unitName, "off");
+    } else if (action === "unit-temp") {
+      await setUnitTemperatureWithVerification(unitName, tempValue);
     } else {
-      log(`Mode: ${status.mode}`);
-      log(`Temperature: ${status.temperature}`);
-      log(`Units occupied: ${status.activeUnits}/${status.totalUnits}`);
+      await openWithVerification();
     }
-  } else if (action === "temp") {
-    await setTemperatureWithVerification(tempValue);
-  } else if (action === "off") {
-    await closeWithVerification();
-  } else if (action === "unit-on") {
-    await setUnitModeWithVerification(unitName, "on");
-  } else if (action === "unit-off") {
-    await setUnitModeWithVerification(unitName, "off");
-  } else if (action === "unit-temp") {
-    await setUnitTemperatureWithVerification(unitName, tempValue);
-  } else {
-    await openWithVerification();
-  }
+  }, {
+    ...retryConfig,
+    onRetry(error, attempt, attempts, delayMs) {
+      log(`Attempt ${attempt}/${attempts} failed: ${errorDetail(error)}`);
+      log(`Retrying in ${Math.round(delayMs / 1000)} seconds`);
+    },
+  });
 
   if (action !== "status") {
     await recordRun({ action, source: runSource, ok: true, detail: "completed" });

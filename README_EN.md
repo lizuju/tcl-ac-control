@@ -17,6 +17,7 @@ Deployment scope: internal AC control for TCL Building, Pazhou Street, Haizhu Di
 - Per-unit control: each AC unit has its own on, off, and temperature controls.
 - Visual schedule management: open/close times and schedule enablement can be adjusted directly from the panel.
 - Workday-aware scheduling: scheduled opening skips weekends and China public holidays, with holiday data handled by year.
+- Schedule retries: scheduled on, off, and temperature commands retry transient network/BMS failures, with 3 attempts by default.
 - Safer shutdown: close operations verify the result and retry once if needed.
 - Watchdog support: the local panel and scheduler are checked periodically and recovered when they drop unexpectedly.
 - macOS and Windows support: macOS uses LaunchAgent, and Windows uses Task Scheduler.
@@ -90,6 +91,8 @@ node --test
 Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses forced opening and is not blocked by holidays.
 
 Every on, off, temperature change, or holiday skip is recorded in the local `runtime-state.json`; the diagnostics page shows the latest run result. If `AC_NOTIFY_WEBHOOK` is configured, control failures and watchdog failures send JSON notifications.
+
+Scheduled commands retry transient failures by default. `AC_CONTROL_ATTEMPTS=3` and `AC_CONTROL_RETRY_DELAY_MS=60000` mean retry after 60 seconds, up to 3 attempts. Manual CLI and panel actions default to 1 attempt so interactive operations do not block for too long; set these two variables in `.env` to override that behavior.
 
 ### Safety Notes
 
