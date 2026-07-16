@@ -32,6 +32,7 @@ import {
 const execFileAsync = promisify(execFile);
 const scriptPath = path.join(here, "ac-control.mjs");
 const panelTitle = process.env.AC_PANEL_TITLE || "AC Control";
+const panelDetailLog = "panel.detail.log";
 const unitColumns = (process.env.AC_PANEL_UNIT_COLUMNS || "")
   .split("|")
   .map((column) => column.split(",").map((name) => name.trim()).filter(Boolean))
@@ -57,7 +58,7 @@ async function recordError(scope, error) {
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const body = `[${new Date().toISOString()}] ${id} ${scope}\n${detailedError(error)}\n\n`;
   await fs.mkdir(logsDir, { recursive: true });
-  await fs.appendFile(path.join(logsDir, "panel.err.log"), body);
+  await fs.appendFile(path.join(logsDir, panelDetailLog), body);
   console.error(body.trimEnd());
   return id;
 }
@@ -69,8 +70,13 @@ async function sendError(res, scope, error) {
   } catch (logError) {
     console.error(logError);
   }
+  const message = `操作失败，错误编号 ${id}。详细信息已写入本机 logs/${panelDetailLog}。`;
+  if (res.headersSent) {
+    res.end(`\n${message}`);
+    return;
+  }
   res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-  res.end(`操作失败，错误编号 ${id}。详细信息已写入本机 logs/panel.err.log。`);
+  res.end(message);
 }
 
 function plist(label, action, hour, minute) {

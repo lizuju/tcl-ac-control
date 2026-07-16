@@ -100,6 +100,6 @@ Scheduled commands retry transient failures by default. `AC_CONTROL_ATTEMPTS=3` 
 - Do not store real passwords in source files. macOS uses Keychain; Windows uses the local ignored `.env` file or process environment.
 - Whole-system `off`, `on`, and `temp` commands verify all configured VAV units after applying changes and retry once if needed.
 - The watchdog only restores the local panel and scheduler; it does not actively turn AC units on or off.
-- Panel errors only show an error ID; detailed errors are written to the local `logs/panel.err.log`.
+- Panel errors only show an error ID; detailed errors are written to the local `logs/panel.detail.log`.
 - The watchdog removes log files older than 7 days.
 - `runtime-state.json` stays local and is ignored by `.gitignore`.

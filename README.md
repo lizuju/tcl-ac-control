@@ -100,6 +100,6 @@ node --test
 - 不要把真实密码写入源码。macOS 使用 Keychain 保存密码；Windows 使用本地 ignored 的 `.env` 或进程环境变量。
 - 全部空调的 `off`、`on`、`temp` 命令会在执行后校验所有配置的 VAV 状态，失败时自动重试一次。
 - 看门狗只负责恢复本地面板和调度任务，不会主动执行打开或关闭空调。
-- 面板错误只显示错误编号，详细错误写入本机 `logs/panel.err.log`。
+- 面板错误只显示错误编号，详细错误写入本机 `logs/panel.detail.log`。
 - 看门狗会清理 7 天前的日志文件。
 - `runtime-state.json` 只保存在本机，并已被 `.gitignore` 忽略。

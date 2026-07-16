@@ -164,7 +164,7 @@ async function passwordCheck() {
 }
 
 async function recentLogSummary() {
-  const files = ["panel.err.log", "watchdog.err.log", "on.err.log", "off.err.log"];
+  const files = ["panel.detail.log", "panel.err.log", "watchdog.err.log", "on.err.log", "off.err.log"];
   const result = [];
   for (const file of files) {
     try {
