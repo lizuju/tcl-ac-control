@@ -161,6 +161,15 @@ export async function installWindowsPanelTask() {
     quotedTaskPath("panel"),
     "/F",
   ]);
+  await execFileAsync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `$task = Get-ScheduledTask -TaskName '${taskNames.panel}'; $task.Settings.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -InputObject $task | Out-Null`,
+  ], {
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+  });
 }
 
 export async function runWindowsPanelTask() {
