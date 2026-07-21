@@ -39,6 +39,21 @@ function check(name, ok, detail) {
   return { name, ok, detail };
 }
 
+export function windowsTaskHealthy(task, requiredState) {
+  if (!task.exists || !task.enabled) return false;
+  const state = String(task.state || "").toLowerCase();
+  if (requiredState && state !== requiredState.toLowerCase()) return false;
+  return state === "running" || task.lastResult === 0;
+}
+
+function windowsTaskDetail(task) {
+  if (!task.exists) return "任务不存在";
+  const enabled = task.enabled ? "已启用" : "已禁用";
+  const result = task.lastResult ?? "未知";
+  const lastRun = task.lastRun ? `，上次运行 ${task.lastRun}` : "";
+  return `${enabled}，状态 ${task.state}，上次结果 ${result}${lastRun}`;
+}
+
 function clean(value) {
   return String(value || "")
     .replaceAll(here, "<project>")
@@ -108,7 +123,7 @@ async function watchdogCheck() {
   try {
     if (process.platform === "win32") {
       const task = await readWindowsTask(taskNames.watchdog);
-      return check("看门狗", task.exists, task.exists ? "Windows 任务已创建，每 30 分钟检查一次" : "Windows 看门狗任务不存在");
+      return check("看门狗", windowsTaskHealthy(task), `${windowsTaskDetail(task)}，每 30 分钟检查一次`);
     }
     const loaded = await readAgentLoaded(watchdogLabel);
     const enabled = await readAgentEnabled(watchdogLabel);
@@ -122,7 +137,7 @@ async function panelTaskCheck() {
   try {
     if (process.platform === "win32") {
       const task = await readWindowsTask(taskNames.panel);
-      return check("面板任务", task.exists, task.exists ? "Windows 登录任务已创建" : "Windows 面板任务不存在");
+      return check("面板任务", windowsTaskHealthy(task, "Running"), windowsTaskDetail(task));
     }
     const loaded = await readAgentLoaded(panelLabel);
     const enabled = await readAgentEnabled(panelLabel);
@@ -185,6 +200,26 @@ export async function recentLogSummary(directory = logsDir, now = Date.now()) {
   return result;
 }
 
+export async function logRetentionCheck(directory = logsDir, now = Date.now()) {
+  const cutoff = now - logRetentionMs;
+  const longRunningLogs = new Set(["panel.log", "panel.err.log"]);
+  const expired = [];
+  try {
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".log") || longRunningLogs.has(entry.name)) continue;
+      const stat = await fs.stat(path.join(directory, entry.name));
+      if (stat.mtimeMs < cutoff) expired.push(entry.name);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") return check("日志保留", false, clean(error.message));
+  }
+  return check(
+    "日志保留",
+    expired.length === 0,
+    expired.length ? `发现超过 7 天的日志：${expired.join(", ")}` : "未发现超过 7 天的日志文件",
+  );
+}
+
 export async function readDiagnostics() {
   const missing = requiredKeys.filter((key) => !process.env[key]);
   const checks = [
@@ -195,7 +230,7 @@ export async function readDiagnostics() {
     await scheduleCheck(),
     await watchdogCheck(),
     await holidayCheck(),
-    check("日志保留", true, "看门狗会清理 7 天前的日志文件"),
+    await logRetentionCheck(),
   ];
 
   return {

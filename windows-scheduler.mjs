@@ -75,7 +75,30 @@ async function queryTaskXml(name) {
 }
 
 export async function readWindowsTask(name) {
-  return { exists: Boolean(await queryTaskXml(name)) };
+  ensureWindows();
+  const taskName = name.replaceAll("'", "''");
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$task = Get-ScheduledTask -TaskName '${taskName}'; $info = Get-ScheduledTaskInfo -TaskName '${taskName}'; [PSCustomObject]@{ exists = $true; enabled = $task.Settings.Enabled; state = $task.State.ToString(); lastResult = [uint32]$info.LastTaskResult; lastRun = $info.LastRunTime.ToString('o'); nextRun = $info.NextRunTime.ToString('o'); executionTimeLimit = $task.Settings.ExecutionTimeLimit } | ConvertTo-Json -Compress`,
+    ], {
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    });
+    return JSON.parse(stdout.trim());
+  } catch {
+    return {
+      exists: false,
+      enabled: false,
+      state: "Missing",
+      lastResult: null,
+      lastRun: "",
+      nextRun: "",
+      executionTimeLimit: "",
+    };
+  }
 }
 
 function readXmlTag(xml, tag) {
