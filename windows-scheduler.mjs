@@ -47,11 +47,12 @@ async function writeTaskScript(name, scriptPath, args, env = {}) {
   await fs.mkdir(logsDir, { recursive: true });
   const stdout = path.join(logsDir, `${name}.log`);
   const stderr = path.join(logsDir, `${name}.err.log`);
+  const retentionArgs = name === "panel" ? " --rotate=panel" : "";
   const body = [
     "@echo off",
     `cd /d ${cmdQuote(here)}`,
     ...Object.entries(env).map(([key, value]) => `set "${key}=${value}"`),
-    `${cmdQuote(nodePath)} ${cmdQuote(logRetentionScriptPath)}`,
+    `${cmdQuote(nodePath)} ${cmdQuote(logRetentionScriptPath)}${retentionArgs}`,
     `${cmdQuote(nodePath)} ${cmdQuote(scriptPath)} ${args.join(" ")} >> ${cmdQuote(stdout)} 2>> ${cmdQuote(stderr)}`,
     "",
   ].join("\r\n");

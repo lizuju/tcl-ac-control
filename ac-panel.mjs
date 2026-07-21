@@ -715,7 +715,7 @@ function diagnosticsHtml(data) {
     ? `${last.at} ${last.source || "manual"} ${last.action} ${last.ok ? "OK" : "FAIL"}${last.skipped ? " SKIPPED" : ""} ${last.detail || last.error || ""}`
     : "暂无记录";
   const logBlocks = (data.recentLogs || []).map((item) => (
-    `<h2>${xml(item.file)}</h2><pre>${xml(item.lines.join("\n"))}</pre>`
+    `<h2>${xml(item.file)}${item.modifiedAt ? ` · ${xml(item.modifiedAt)}` : ""}</h2><pre>${xml(item.lines.join("\n"))}</pre>`
   )).join("") || "<div>暂无错误日志</div>";
 
   return `<!doctype html>

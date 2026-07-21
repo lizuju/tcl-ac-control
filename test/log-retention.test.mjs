@@ -31,3 +31,16 @@ test("maintainLogs rotates daily logs and removes files older than seven days", 
   assert.ok(!files.includes("off.log"));
   assert.ok(!files.includes("panel.2026-07-12-1.log"));
 });
+
+test("maintainLogs rotates a forced task log from the current day", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "company-ac-logs-"));
+  const now = Date.parse("2026-07-21T08:00:00.000Z");
+  await writeLog(directory, "panel.err.log", now);
+
+  const result = await maintainLogs(directory, now, ["panel"]);
+  const files = await fs.readdir(directory);
+
+  assert.equal(result.rotated, 1);
+  assert.ok(files.some((name) => name.startsWith("panel.err.2026-07-21-")));
+  assert.ok(!files.includes("panel.err.log"));
+});

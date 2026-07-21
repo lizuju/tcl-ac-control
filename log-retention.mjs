@@ -17,7 +17,7 @@ function isLocked(error) {
   return error.code === "EBUSY" || error.code === "EPERM" || error.code === "EACCES";
 }
 
-export async function maintainLogs(directory, now = Date.now()) {
+export async function maintainLogs(directory, now = Date.now(), forcePrefixes = []) {
   const today = logDate(now);
   const cutoff = now - logRetentionMs;
   let rotated = 0;
@@ -30,7 +30,18 @@ export async function maintainLogs(directory, now = Date.now()) {
     const filePath = path.join(directory, entry.name);
     const stat = await fs.stat(filePath);
     const date = logDate(stat.mtimeMs);
-    if (date >= today) continue;
+    const forced = forcePrefixes.some((prefix) => entry.name === `${prefix}.log` || entry.name === `${prefix}.err.log`);
+    if (!forced && date >= today) continue;
+    if (stat.size === 0) {
+      try {
+        await fs.unlink(filePath);
+        removed += 1;
+      } catch (error) {
+        if (!isLocked(error) && error.code !== "ENOENT") throw error;
+        skipped += 1;
+      }
+      continue;
+    }
     const archive = path.join(directory, `${entry.name.slice(0, -4)}.${date}-${Math.trunc(stat.mtimeMs)}.log`);
     try {
       await fs.rename(filePath, archive);
@@ -59,5 +70,8 @@ export async function maintainLogs(directory, now = Date.now()) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  await maintainLogs(logsDir);
+  const forcePrefixes = process.argv
+    .filter((argument) => argument.startsWith("--rotate="))
+    .map((argument) => argument.slice("--rotate=".length));
+  await maintainLogs(logsDir, Date.now(), forcePrefixes);
 }

@@ -20,6 +20,7 @@ import {
 } from "./windows-scheduler.mjs";
 import { panelListenUrl, panelLocalUrl } from "./panel-config.mjs";
 import { readRuntimeState } from "./runtime-state.mjs";
+import { logRetentionMs } from "./log-retention.mjs";
 
 const execFileAsync = promisify(execFile);
 const holidayApi = process.env.AC_HOLIDAY_API || "https://api.jiejiariapi.com/v1/holidays";
@@ -163,17 +164,20 @@ async function passwordCheck() {
   return check("密码配置", ok, ok ? "AC_PASSWORD 已配置" : "AC_PASSWORD 未配置");
 }
 
-async function recentLogSummary() {
+export async function recentLogSummary(directory = logsDir, now = Date.now()) {
   const files = ["panel.detail.log", "panel.err.log", "watchdog.err.log", "on.err.log", "off.err.log"];
   const result = [];
   for (const file of files) {
     try {
-      const lines = (await fs.readFile(path.join(logsDir, file), "utf8"))
+      const filePath = path.join(directory, file);
+      const stat = await fs.stat(filePath);
+      if (stat.mtimeMs < now - logRetentionMs) continue;
+      const lines = (await fs.readFile(filePath, "utf8"))
         .split(/\r?\n/)
         .filter(Boolean)
         .slice(-20)
         .map(clean);
-      if (lines.length) result.push({ file, lines });
+      if (lines.length) result.push({ file, modifiedAt: stat.mtime.toISOString(), lines });
     } catch (error) {
       if (error.code !== "ENOENT") result.push({ file, lines: [clean(error.message)] });
     }
