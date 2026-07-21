@@ -82,7 +82,7 @@ export async function readWindowsTask(name) {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      `$task = Get-ScheduledTask -TaskName '${taskName}'; $info = Get-ScheduledTaskInfo -TaskName '${taskName}'; [PSCustomObject]@{ exists = $true; enabled = $task.Settings.Enabled; state = $task.State.ToString(); lastResult = [uint32]$info.LastTaskResult; lastRun = $info.LastRunTime.ToString('o'); nextRun = $info.NextRunTime.ToString('o'); executionTimeLimit = $task.Settings.ExecutionTimeLimit } | ConvertTo-Json -Compress`,
+      `$task = Get-ScheduledTask -TaskName '${taskName}'; $info = Get-ScheduledTaskInfo -TaskName '${taskName}'; $lastRun = if ($null -eq $info.LastRunTime) { '' } else { $info.LastRunTime.ToString('o') }; $nextRun = if ($null -eq $info.NextRunTime) { '' } else { $info.NextRunTime.ToString('o') }; [PSCustomObject]@{ exists = $true; enabled = $task.Settings.Enabled; state = $task.State.ToString(); lastResult = [uint32]$info.LastTaskResult; lastRun = $lastRun; nextRun = $nextRun; executionTimeLimit = $task.Settings.ExecutionTimeLimit } | ConvertTo-Json -Compress`,
     ], {
       windowsHide: true,
       maxBuffer: 1024 * 1024,
