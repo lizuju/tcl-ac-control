@@ -14,6 +14,7 @@ const taskDir = path.join(here, "out", "windows-tasks");
 const controlScriptPath = path.join(here, "ac-control.mjs");
 const panelScriptPath = path.join(here, "ac-panel.mjs");
 const watchdogScriptPath = path.join(here, "watchdog.mjs");
+const logRetentionScriptPath = path.join(here, "log-retention.mjs");
 const taskNames = {
   on: "TCLAC-On",
   off: "TCLAC-Off",
@@ -50,6 +51,7 @@ async function writeTaskScript(name, scriptPath, args, env = {}) {
     "@echo off",
     `cd /d ${cmdQuote(here)}`,
     ...Object.entries(env).map(([key, value]) => `set "${key}=${value}"`),
+    `${cmdQuote(nodePath)} ${cmdQuote(logRetentionScriptPath)}`,
     `${cmdQuote(nodePath)} ${cmdQuote(scriptPath)} ${args.join(" ")} >> ${cmdQuote(stdout)} 2>> ${cmdQuote(stderr)}`,
     "",
   ].join("\r\n");
