@@ -30,7 +30,9 @@ export async function maintainLogs(directory, now = Date.now(), forcePrefixes = 
     const filePath = path.join(directory, entry.name);
     const stat = await fs.stat(filePath);
     const date = logDate(stat.mtimeMs);
-    const forced = forcePrefixes.some((prefix) => entry.name === `${prefix}.log` || entry.name === `${prefix}.err.log`);
+    const forced = forcePrefixes.some(
+      (prefix) => entry.name === `${prefix}.log` || entry.name.startsWith(`${prefix}.`),
+    );
     if (!forced && date >= today) continue;
     if (stat.size === 0) {
       try {
