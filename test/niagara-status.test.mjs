@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { statusIsOverridden } from "../niagara-status.mjs";
+import { activePriorityLevel, isLocalPriorityOverride } from "../niagara-status.mjs";
 
-test("Niagara overridden status uses the 0x10 bit", () => {
-  assert.equal(statusIsOverridden("10"), true);
-  assert.equal(statusIsOverridden("10;activeLevel=e:17@control:PriorityLevel"), true);
-  assert.equal(statusIsOverridden("0;activeLevel=e:17@control:PriorityLevel"), false);
-  assert.equal(statusIsOverridden("20"), false);
+test("local force detection uses the writable point priority level", () => {
+  assert.equal(activePriorityLevel("10"), null);
+  assert.equal(activePriorityLevel("10;activeLevel=e:8@control:PriorityLevel"), 8);
+  assert.equal(isLocalPriorityOverride("10"), false);
+  assert.equal(isLocalPriorityOverride("0;activeLevel=e:17@control:PriorityLevel"), false);
+  assert.equal(isLocalPriorityOverride("10;activeLevel=e:8@control:PriorityLevel"), true);
 });

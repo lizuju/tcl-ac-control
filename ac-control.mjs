@@ -5,7 +5,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
-import { statusIsOverridden } from "./niagara-status.mjs";
+import { isLocalPriorityOverride } from "./niagara-status.mjs";
 import { notify } from "./notify.mjs";
 import { recordRun } from "./runtime-state.mjs";
 import { controlRetryConfig, retryAsync } from "./retry.mjs";
@@ -296,19 +296,8 @@ function outStatus(component) {
   return slot(slot(component, "out"), "status");
 }
 
-function activeLevel(component) {
-  const raw = outStatus(component)?.v || "";
-  const match = /activeLevel=e:(\d+)@control:PriorityLevel/.exec(raw);
-  return match ? Number(match[1]) : null;
-}
-
-function isOverridden(component) {
-  return statusIsOverridden(outStatus(component)?.v);
-}
-
 function isForced(component) {
-  const level = activeLevel(component);
-  return isOverridden(component) || (level !== null && level !== 17);
+  return isLocalPriorityOverride(outStatus(component)?.v);
 }
 
 function hasAction(component, name) {
