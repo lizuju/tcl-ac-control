@@ -182,6 +182,7 @@ async function passwordCheck() {
 export async function recentLogSummary(directory = logsDir, now = Date.now()) {
   const files = ["panel.detail.log", "panel.err.log", "watchdog.err.log", "on.err.log", "off.err.log"];
   const result = [];
+  const seen = new Set();
   for (const file of files) {
     try {
       const filePath = path.join(directory, file);
@@ -192,7 +193,11 @@ export async function recentLogSummary(directory = logsDir, now = Date.now()) {
         .filter(Boolean)
         .slice(-20)
         .map(clean);
-      if (lines.length) result.push({ file, modifiedAt: stat.mtime.toISOString(), lines });
+      const signature = lines.join("\n");
+      if (lines.length && !seen.has(signature)) {
+        seen.add(signature);
+        result.push({ file, modifiedAt: stat.mtime.toISOString(), lines });
+      }
     } catch (error) {
       if (error.code !== "ENOENT") result.push({ file, lines: [clean(error.message)] });
     }

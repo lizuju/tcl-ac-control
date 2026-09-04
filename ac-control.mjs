@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
 import { isLocalPriorityOverride } from "./niagara-status.mjs";
+import { encodeModeValue, encodeTemperatureValue } from "./niagara-values.mjs";
 import { notify } from "./notify.mjs";
 import { recordRun } from "./runtime-state.mjs";
 import { controlRetryConfig, retryAsync } from "./retry.mjs";
@@ -342,18 +343,8 @@ async function acquireControlLock() {
   }
 }
 
-function encodeModeValue(action) {
-  const value = values[action];
-  return {
-    nm: "p",
-    t: "baja:DynamicEnum",
-    d: value.display,
-    v: `${value.ordinal}@${range}`,
-  };
-}
-
 async function setMode(action, handle) {
-  return invokeAction(handle, "set", encodeModeValue(action));
+  return invokeAction(handle, "set", encodeModeValue(values[action].ordinal, range));
 }
 
 async function invokeAction(handle, name, param) {
@@ -371,17 +362,8 @@ async function invokeAction(handle, name, param) {
   }]);
 }
 
-function encodeTempValue(value) {
-  return {
-    nm: "p",
-    t: "baja:Double",
-    d: value.toFixed(2),
-    v: value.toFixed(1),
-  };
-}
-
 async function setTemp(value, handle) {
-  return invokeAction(handle, "set", encodeTempValue(value));
+  return invokeAction(handle, "set", encodeTemperatureValue(value));
 }
 
 async function releaseForcedSettings(targetVavs = vavs) {
@@ -675,6 +657,7 @@ async function password() {
 
 const action = process.argv[2] || "status";
 const force = process.argv.includes("--force") || process.env.AC_FORCE === "1";
+const submitOnly = process.argv.includes("--submit-only");
 const runSource = process.env.AC_RUN_SOURCE || "manual";
 jsonOutput = process.argv.includes("--json");
 if (!["status", "on", "off", "temp", "unit-on", "unit-off", "unit-temp"].includes(action)) {
@@ -726,7 +709,8 @@ try {
         log(`Units occupied: ${status.activeUnits}/${status.totalUnits}`);
       }
     } else if (action === "temp") {
-      await setTemperatureWithVerification(tempValue);
+      if (submitOnly) await applyTemperature(tempValue);
+      else await setTemperatureWithVerification(tempValue);
     } else if (action === "off") {
       await closeWithVerification();
     } else if (action === "unit-on") {
@@ -734,7 +718,8 @@ try {
     } else if (action === "unit-off") {
       await setUnitModeWithVerification(unitName, "off");
     } else if (action === "unit-temp") {
-      await setUnitTemperatureWithVerification(unitName, tempValue);
+      if (submitOnly) await applyUnitTemperature(findVav(unitName), tempValue);
+      else await setUnitTemperatureWithVerification(unitName, tempValue);
     } else {
       await openWithVerification();
     }
@@ -747,7 +732,7 @@ try {
   });
 
   if (action !== "status") {
-    await recordRun({ action, source: runSource, ok: true, detail: "completed" });
+    await recordRun({ action, source: runSource, ok: true, detail: submitOnly ? "submitted" : "completed" });
   }
 } catch (error) {
   if (action !== "status") {

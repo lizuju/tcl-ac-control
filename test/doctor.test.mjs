@@ -32,6 +32,17 @@ test("recentLogSummary excludes expired and archived error logs", async () => {
   assert.deepEqual(result[0].lines, ["current error"]);
 });
 
+test("recentLogSummary hides duplicate log output", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "company-ac-doctor-"));
+  const now = Date.parse("2026-09-04T08:00:00.000Z");
+  await writeLog(directory, "panel.detail.log", "same error\n", now);
+  await writeLog(directory, "panel.err.log", "same error\n", now);
+
+  const result = await recentLogSummary(directory, now);
+
+  assert.deepEqual(result.map((item) => item.file), ["panel.detail.log"]);
+});
+
 test("windowsTaskHealthy requires enabled tasks and successful results", () => {
   assert.equal(windowsTaskHealthy({ exists: true, enabled: true, state: "Ready", lastResult: 0 }), true);
   assert.equal(windowsTaskHealthy({ exists: true, enabled: true, state: "Running", lastResult: 267009 }, "Running"), true);

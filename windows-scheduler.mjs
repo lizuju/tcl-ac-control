@@ -47,7 +47,7 @@ async function writeTaskScript(name, scriptPath, args, env = {}) {
   await fs.mkdir(logsDir, { recursive: true });
   const stdout = path.join(logsDir, `${name}.log`);
   const stderr = path.join(logsDir, `${name}.err.log`);
-  const retentionArgs = name === "panel" ? " --rotate=panel" : "";
+  const retentionArgs = ` --rotate=${name}`;
   const body = [
     "@echo off",
     `cd /d ${cmdQuote(here)}`,

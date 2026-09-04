@@ -40,7 +40,7 @@ const unitColumns = (process.env.AC_PANEL_UNIT_COLUMNS || "")
 const username = requiredEnv("AC_USERNAME");
 const keychainService = process.env.AC_KEYCHAIN_SERVICE || "company-ac";
 let scheduleQueue = Promise.resolve();
-let controlQueue = Promise.resolve();
+let controlRunning = false;
 
 function redact(value) {
   return String(value || "").replaceAll(process.env.AC_PASSWORD || "\u0000", "[redacted]");
@@ -59,11 +59,15 @@ async function recordError(scope, error) {
   const body = `[${new Date().toISOString()}] ${id} ${scope}\n${detailedError(error)}\n\n`;
   await fs.mkdir(logsDir, { recursive: true });
   await fs.appendFile(path.join(logsDir, panelDetailLog), body);
-  console.error(body.trimEnd());
   return id;
 }
 
 async function sendError(res, scope, error) {
+  if (error.statusCode === 409) {
+    res.writeHead(409, { "content-type": "text/plain; charset=utf-8" });
+    res.end(error.message);
+    return;
+  }
   let id = "unknown";
   try {
     id = await recordError(scope, error);
@@ -623,7 +627,13 @@ function html() {
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        await refreshAcStatus();
+        const temperatureAction = action.startsWith("temp?") || action.includes("/temp?");
+        if (temperatureAction) {
+          setTimeout(refreshAcStatus, 15000);
+          setTimeout(refreshAcStatus, 65000);
+        } else {
+          await refreshAcStatus();
+        }
         document.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
     }
@@ -779,7 +789,7 @@ async function control(action, value) {
   if (action === "temp") {
     const temp = Number(value);
     if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
-    args.push(String(temp));
+    args.push(String(temp), "--submit-only");
   }
   if (action === "on") args.push("--force");
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
@@ -788,7 +798,7 @@ async function control(action, value) {
     timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
-  return (stdout + stderr).trim();
+  return action === "temp" ? "温度指令已发送，设备正在同步" : (stdout + stderr).trim();
 }
 
 async function controlUnit(unit, action, value) {
@@ -797,7 +807,7 @@ async function controlUnit(unit, action, value) {
   if (action === "temp") {
     const temp = Number(value);
     if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
-    args.push(String(temp));
+    args.push(String(temp), "--submit-only");
   }
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
     cwd: here,
@@ -805,12 +815,21 @@ async function controlUnit(unit, action, value) {
     timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
-  return (stdout + stderr).trim();
+  return action === "temp" ? "温度指令已发送，设备正在同步" : (stdout + stderr).trim();
 }
 
 async function updateControl(operation) {
-  controlQueue = controlQueue.then(operation, operation);
-  return controlQueue;
+  if (controlRunning) {
+    const error = new Error("另一项空调操作正在执行，请稍后再试");
+    error.statusCode = 409;
+    throw error;
+  }
+  controlRunning = true;
+  try {
+    return await operation();
+  } finally {
+    controlRunning = false;
+  }
 }
 
 const server = http.createServer(async (req, res) => {
