@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
+import { statusIsOverridden } from "./niagara-status.mjs";
 import { notify } from "./notify.mjs";
 import { recordRun } from "./runtime-state.mjs";
 import { controlRetryConfig, retryAsync } from "./retry.mjs";
@@ -302,9 +303,7 @@ function activeLevel(component) {
 }
 
 function isOverridden(component) {
-  const raw = outStatus(component)?.v || "";
-  const bits = Number.parseInt(raw.split(";")[0] || "0", 16);
-  return (bits & 0x20) !== 0;
+  return statusIsOverridden(outStatus(component)?.v);
 }
 
 function isForced(component) {
@@ -493,8 +492,7 @@ function summarizeUnitStatus(unit) {
   return `${unit.name}: mode=${unit.mode}, temperature=${unit.temperature}`;
 }
 
-async function waitForStatus(predicate, label) {
-  const timeoutAt = Date.now() + verifyTimeoutMs;
+async function waitForStatus(predicate, label, timeoutAt = Date.now() + verifyTimeoutMs) {
   let status = await readSystemStatus();
 
   while (!predicate(status) && Date.now() < timeoutAt) {
@@ -569,15 +567,25 @@ async function applyTemperature(value) {
 }
 
 async function setTemperatureWithVerification(value) {
+  const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyTemperature(value);
-  let status = await waitForStatus((item) => allTemperaturesMatch(item, value), "Temperature verification check");
+  const firstTimeoutAt = Date.now() + Math.max(0, Math.floor((timeoutAt - Date.now()) / 2));
+  let status = await waitForStatus(
+    (item) => allTemperaturesMatch(item, value),
+    "Temperature verification check",
+    firstTimeoutAt,
+  );
   if (!allTemperaturesMatch(status, value)) {
     const mismatched = status.units
       .filter((unit) => !temperatureMatches(unit.temperature, value))
       .map((unit) => `${unit.name} ${unit.temperature}`);
     log(`Temperature verification failed: ${mismatched.join(", ") || `global ${status.temperature}`}, retrying once`);
     await applyTemperature(value);
-    status = await waitForStatus((item) => allTemperaturesMatch(item, value), "Temperature verification retry check");
+    status = await waitForStatus(
+      (item) => allTemperaturesMatch(item, value),
+      "Temperature verification retry check",
+      timeoutAt,
+    );
   }
   const success = allTemperaturesMatch(status, value);
   log(`Temperature verification: ${success ? "success" : "failed"}`);
