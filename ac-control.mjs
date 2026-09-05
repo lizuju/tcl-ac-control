@@ -347,6 +347,15 @@ async function setMode(action, handle) {
   return invokeAction(handle, "set", encodeModeValue(values[action].ordinal, range));
 }
 
+async function releaseForcedPoint(component, ord) {
+  if (!isForced(component)) return;
+  if (!hasAction(component, "emergencyAuto")) {
+    throw new Error(`${ord} is forced but has no emergencyAuto action`);
+  }
+  await invokeAction(component.h, "emergencyAuto");
+  log(`Released forced setting: ${ord}`);
+}
+
 async function invokeAction(handle, name, param) {
   const scarg = { h: handle, a: name };
   if (param) scarg.b = param;
@@ -491,6 +500,7 @@ async function waitForUnitStatus(vav, predicate, label) {
 async function applyMode(action) {
   const before = (await resolveMode()).o;
   log(`Mode before: ${currentDisplay(before)}`);
+  await releaseForcedPoint(before, modeOrd);
   await releaseForcedSettings();
   await setMode(action, before.h);
   await setAllVavModes(action);
@@ -502,7 +512,8 @@ async function applyMode(action) {
 async function closeWithVerification() {
   const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyMode("off");
-  let status = await waitForStatus((item) => item.closed, "Close verification check", timeoutAt);
+  const firstTimeoutAt = Date.now() + Math.max(0, Math.floor((timeoutAt - Date.now()) / 2));
+  let status = await waitForStatus((item) => item.closed, "Close verification check", firstTimeoutAt);
   if (!status.closed) {
     log(`Close verification failed: ${status.activeUnits}/${status.totalUnits} units still occupied, retrying once`);
     if (Date.now() < timeoutAt) {
@@ -517,7 +528,8 @@ async function closeWithVerification() {
 async function openWithVerification() {
   const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyMode("on");
-  let status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification check", timeoutAt);
+  const firstTimeoutAt = Date.now() + Math.max(0, Math.floor((timeoutAt - Date.now()) / 2));
+  let status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification check", firstTimeoutAt);
   if (!allUnitsInMode(status, "on")) {
     log(`Open verification failed: ${status.activeUnits}/${status.totalUnits} units occupied, retrying once`);
     if (Date.now() < timeoutAt) {
@@ -533,9 +545,11 @@ async function openWithVerification() {
 async function applyTemperature(value) {
   const before = (await resolveMode()).o;
   log(`Mode before: ${currentDisplay(before)}`);
+  await releaseForcedPoint(before, modeOrd);
   await releaseForcedSettings();
   const tempBefore = (await resolveTemp()).o;
   log(`Temperature before: ${currentDisplay(tempBefore)}`);
+  await releaseForcedPoint(tempBefore, tempOrd);
   await setTemp(value, tempBefore.h);
   await setAllVavTemps(value);
   await sleep(1000);
@@ -727,7 +741,8 @@ try {
       if (submitOnly) await applyUnitTemperature(findVav(unitName), tempValue);
       else await setUnitTemperatureWithVerification(unitName, tempValue);
     } else {
-      await openWithVerification();
+      if (submitOnly) await applyMode("on");
+      else await openWithVerification();
     }
   }, {
     ...retryConfig,

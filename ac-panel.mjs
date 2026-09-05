@@ -237,6 +237,8 @@ function html() {
     .remoteStep { height: 56px; background: #334155; font-size: 30px; line-height: 1; }
     .remoteTempValue { display: grid; place-items: center; height: 56px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #172026; font-size: 28px; font-weight: 800; box-sizing: border-box; }
     .remoteTempSave { height: 54px; background: #175cd3; font-size: 18px; }
+    .remoteActionStatus { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+    .remoteActionStatus:empty { display: none; }
     .remoteSchedule { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: #344054; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .remoteSchedule.runningSchedule { color: #166534; }
     .remoteSchedule.disabledSchedule { color: #991b1b; }
@@ -398,6 +400,7 @@ function html() {
           <button id="remoteTempPlus" class="remoteStep" type="button">+</button>
         </div>
         <button id="remoteTempSave" class="remoteTempSave" type="button">保存温度</button>
+        <div id="remoteActionStatus" class="remoteActionStatus" role="status"></div>
         <div id="remoteSchedule" class="remoteSchedule"><span class="dot"></span>定时读取中</div>
         <div class="remoteNavGrid">
           <button class="remoteNav" type="button" data-scroll="#unitGrid">单台空调</button>
@@ -484,6 +487,12 @@ function html() {
     const unitColumns = ${JSON.stringify(unitColumns)};
     let showScheduleInfo = false;
     let selectedTemperature = temperatureSelect.value;
+    let actionVersion = 0;
+
+    function reportStatus(message) {
+      status.textContent = message;
+      document.querySelector("#remoteActionStatus").textContent = message;
+    }
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -512,7 +521,8 @@ function html() {
       remoteTempValue.textContent = next + " °C";
     }
 
-    function renderAcStatus(data) {
+    function renderAcStatus(data, background = false) {
+      const selections = new Map(background ? Array.from(unitGrid.querySelectorAll(".unitControls"), (controls) => [controls.dataset.unit, controls.querySelector(".unitTemp").value]) : []);
       const allOff = data.closed;
       const className = allOff ? "offState" : data.activeUnits > 0 ? "onState" : "";
       const label = allOff ? "已关闭" : data.activeUnits > 0 ? "运行中" : "未知";
@@ -534,7 +544,7 @@ function html() {
       }
       const renderUnit = (unit) => {
         const unitClass = unit.off ? "offUnit" : unit.on ? "onUnit" : "";
-        const temp = String(Math.round(Number.parseFloat(unit.temperature)));
+        const temp = selections.get(unit.name) || String(Math.round(Number.parseFloat(unit.temperature)));
         const badgeTemperature = unit.temperature.replace(/\s*°C$/, "°C");
         const options = temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
         const toggleAction = unit.on ? "off" : "on";
@@ -567,9 +577,7 @@ function html() {
       unitGrid.innerHTML = orderedUnits
         .map((column) => '<div class="unitColumn">' + column.map(renderUnit).join("") + '</div>')
         .join("");
-      const temp = String(Math.round(Number.parseFloat(data.temperature)));
-      if (temperatureSelect.querySelector('option[value="' + temp + '"]')) temperatureSelect.value = temp;
-      setTemperatureValue(temp);
+      if (!background) setTemperatureValue(Math.round(Number.parseFloat(data.temperature)));
     }
 
     function renderSchedule(data) {
@@ -604,15 +612,19 @@ function html() {
       renderSchedule(await response.json());
     }
 
-    async function refreshAcStatus() {
-      stateSummary.textContent = "读取中...";
-      remoteState.innerHTML = '<span class="dot"></span>读取中';
-      remoteMeta.textContent = "正在读取空调状态...";
+    async function refreshAcStatus(background = false) {
+      if (!background) {
+        stateSummary.textContent = "读取中...";
+        remoteState.innerHTML = '<span class="dot"></span>读取中';
+        remoteMeta.textContent = "正在读取空调状态...";
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
-        const response = await fetch("/api/status");
+        const response = await fetch("/api/status", { signal: controller.signal });
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
-        renderAcStatus(data);
+        renderAcStatus(data, background);
         return data;
       } catch (error) {
         stateSummary.textContent = "状态读取失败：" + error.message;
@@ -620,6 +632,8 @@ function html() {
         remoteState.innerHTML = '<span class="dot"></span>读取失败';
         remoteMeta.textContent = error.message;
         return null;
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
@@ -637,36 +651,59 @@ function html() {
         && data.units.every((unit) => Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05);
     }
 
-    async function waitForTemperature(action) {
+    async function waitForTemperature(action, version) {
       const value = Number(new URLSearchParams(action.split("?", 2)[1]).get("value"));
       const deadline = Date.now() + 60000;
-      while (Date.now() < deadline) {
+      while (Date.now() < deadline && version === actionVersion) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        const data = await refreshAcStatus();
+        if (version !== actionVersion) return;
+        const data = await refreshAcStatus(true);
+        if (version !== actionVersion) return;
         if (data && temperatureReady(data, action, value)) {
-          status.textContent = "温度已同步：" + value + " °C";
+          reportStatus("温度已同步：" + value + " °C");
           return;
         }
       }
-      status.textContent = "温度同步超时，请稍后刷新状态";
+      if (version === actionVersion) reportStatus("温度同步超时，请稍后刷新状态");
+    }
+
+    async function waitForPower(version) {
+      const deadline = Date.now() + 60000;
+      while (Date.now() < deadline && version === actionVersion) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (version !== actionVersion) return;
+        const data = await refreshAcStatus(true);
+        if (version !== actionVersion) return;
+        if (data && data.totalUnits > 0 && data.units.every((unit) => unit.on)) {
+          reportStatus("空调已打开");
+          return;
+        }
+      }
+      if (version === actionVersion) reportStatus("启动同步超时，请稍后刷新状态");
     }
 
     async function run(action) {
+      const version = ++actionVersion;
       const temperatureAction = action.startsWith("temp?") || action.includes("/temp?");
+      const powerAction = action === "on";
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), temperatureAction || powerAction ? 20000 : 90000);
       let responseOk = false;
       document.querySelectorAll("button").forEach((button) => button.disabled = true);
-      status.textContent = "执行中...";
+      reportStatus("正在发送指令...");
       try {
-        const response = await fetch("/api/" + action, { method: "POST" });
+        const response = await fetch("/api/" + action, { method: "POST", signal: controller.signal });
         const body = await response.text();
         responseOk = response.ok;
-        status.textContent = body || (response.ok ? "完成" : "失败");
-        if (response.ok && temperatureAction) await waitForTemperature(action);
+        reportStatus(body || (response.ok ? "完成" : "失败"));
+        if (response.ok && temperatureAction) void waitForTemperature(action, version);
+        if (response.ok && powerAction) void waitForPower(version);
       } catch (error) {
-        status.textContent = error.message;
+        reportStatus(error.name === "AbortError" ? "请求超时，操作可能仍在执行，请先刷新状态" : error.message);
       } finally {
-        if (!temperatureAction || !responseOk) await refreshAcStatus();
+        clearTimeout(timeout);
         document.querySelectorAll("button").forEach((button) => button.disabled = false);
+        if ((!temperatureAction && !powerAction) || !responseOk) void refreshAcStatus(true);
       }
     }
 
@@ -823,14 +860,16 @@ async function control(action, value) {
     if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
     args.push(String(temp), "--submit-only");
   }
-  if (action === "on") args.push("--force");
+  if (action === "on") args.push("--force", "--submit-only");
   const { stdout, stderr } = await execFileAsync(process.execPath, args, {
     cwd: here,
     env: { ...process.env, AC_RUN_SOURCE: "panel" },
     timeout: 180000,
     maxBuffer: 1024 * 1024,
   });
-  return action === "temp" ? "温度指令已发送，设备正在同步" : (stdout + stderr).trim();
+  if (action === "temp") return "温度指令已发送，设备正在同步";
+  if (action === "on") return "打开指令已发送，设备正在同步";
+  return (stdout + stderr).trim();
 }
 
 async function controlUnit(unit, action, value) {
