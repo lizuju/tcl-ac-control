@@ -48,7 +48,7 @@ test("maintainLogs rotates a forced task log from the current day", async () => 
 test("maintainLogs rotates all logs belonging to a forced task", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ac-logs-"));
   const now = new Date("2026-09-04T12:00:00.000Z").getTime();
-  await fs.writeFile(path.join(directory, "panel.detail.log"), "details\n");
+  await writeLog(directory, "panel.detail.log", now);
 
   const result = await maintainLogs(directory, now, ["panel"]);
   const files = await fs.readdir(directory);

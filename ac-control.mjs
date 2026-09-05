@@ -500,24 +500,30 @@ async function applyMode(action) {
 }
 
 async function closeWithVerification() {
+  const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyMode("off");
-  let status = await waitForStatus((item) => item.closed, "Close verification check");
+  let status = await waitForStatus((item) => item.closed, "Close verification check", timeoutAt);
   if (!status.closed) {
     log(`Close verification failed: ${status.activeUnits}/${status.totalUnits} units still occupied, retrying once`);
-    await applyMode("off");
-    status = await waitForStatus((item) => item.closed, "Close verification retry check");
+    if (Date.now() < timeoutAt) {
+      await applyMode("off");
+      status = await waitForStatus((item) => item.closed, "Close verification retry check", timeoutAt);
+    }
   }
   log(`Close verification: ${status.closed ? "success" : "failed"}`);
   if (!status.closed) throw new Error(`close failed after second attempt: ${summarizeStatus(status)}`);
 }
 
 async function openWithVerification() {
+  const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyMode("on");
-  let status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification check");
+  let status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification check", timeoutAt);
   if (!allUnitsInMode(status, "on")) {
     log(`Open verification failed: ${status.activeUnits}/${status.totalUnits} units occupied, retrying once`);
-    await applyMode("on");
-    status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification retry check");
+    if (Date.now() < timeoutAt) {
+      await applyMode("on");
+      status = await waitForStatus((item) => allUnitsInMode(item, "on"), "Open verification retry check", timeoutAt);
+    }
   }
   const success = allUnitsInMode(status, "on");
   log(`Open verification: ${success ? "success" : "failed"}`);
