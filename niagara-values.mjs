@@ -1,7 +1,8 @@
-export function encodeModeValue(ordinal, range) {
+export function encodeModeValue(ordinal, range, display) {
   return {
     nm: "p",
     t: "baja:DynamicEnum",
+    d: display,
     v: `${ordinal}@${range}`,
   };
 }
@@ -10,6 +11,7 @@ export function encodeTemperatureValue(value) {
   return {
     nm: "p",
     t: "baja:Double",
-    v: String(value),
+    d: value.toFixed(2),
+    v: value.toFixed(1),
   };
 }

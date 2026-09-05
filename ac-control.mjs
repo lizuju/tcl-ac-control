@@ -344,7 +344,7 @@ async function acquireControlLock() {
 }
 
 async function setMode(action, handle) {
-  return invokeAction(handle, "set", encodeModeValue(values[action].ordinal, range));
+  return invokeAction(handle, "set", encodeModeValue(values[action].ordinal, range, values[action].display));
 }
 
 async function releaseForcedPoint(component, ord) {
