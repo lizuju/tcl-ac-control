@@ -605,11 +605,13 @@ function html() {
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
         renderAcStatus(data);
+        return data;
       } catch (error) {
         stateSummary.textContent = "状态读取失败：" + error.message;
         remoteState.className = "statePill";
         remoteState.innerHTML = '<span class="dot"></span>读取失败';
         remoteMeta.textContent = error.message;
+        return null;
       }
     }
 
@@ -617,23 +619,45 @@ function html() {
       await Promise.allSettled([refreshSchedule(), refreshAcStatus()]);
     }
 
+    function temperatureReady(data, action, value) {
+      const unitMatch = /^unit\/([^/]+)\/temp/.exec(action);
+      if (unitMatch) {
+        const unit = data.units.find((item) => item.name === decodeURIComponent(unitMatch[1]));
+        return unit && Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05;
+      }
+      return Math.abs(Number.parseFloat(data.temperature) - value) < 0.05
+        && data.units.every((unit) => Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05);
+    }
+
+    async function waitForTemperature(action) {
+      const value = Number(new URLSearchParams(action.split("?", 2)[1]).get("value"));
+      const deadline = Date.now() + 60000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const data = await refreshAcStatus();
+        if (data && temperatureReady(data, action, value)) {
+          status.textContent = "温度已同步：" + value + " °C";
+          return;
+        }
+      }
+      status.textContent = "温度同步超时，请稍后刷新状态";
+    }
+
     async function run(action) {
+      const temperatureAction = action.startsWith("temp?") || action.includes("/temp?");
+      let responseOk = false;
       document.querySelectorAll("button").forEach((button) => button.disabled = true);
       status.textContent = "执行中...";
       try {
         const response = await fetch("/api/" + action, { method: "POST" });
         const body = await response.text();
+        responseOk = response.ok;
         status.textContent = body || (response.ok ? "完成" : "失败");
+        if (response.ok && temperatureAction) await waitForTemperature(action);
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        const temperatureAction = action.startsWith("temp?") || action.includes("/temp?");
-        if (temperatureAction) {
-          setTimeout(refreshAcStatus, 15000);
-          setTimeout(refreshAcStatus, 65000);
-        } else {
-          await refreshAcStatus();
-        }
+        if (!temperatureAction || !responseOk) await refreshAcStatus();
         document.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
     }
