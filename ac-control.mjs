@@ -316,7 +316,7 @@ function sleep(ms) {
 }
 
 async function acquireControlLock() {
-  const timeoutAt = Date.now() + 120000;
+  const timeoutAt = Date.now() + (runSource === "panel" ? 5000 : 120000);
 
   while (true) {
     try {

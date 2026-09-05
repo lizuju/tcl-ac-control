@@ -54,6 +54,10 @@ function detailedError(error) {
   ].filter(Boolean).map(redact).join("\n");
 }
 
+function isControlBusyError(error) {
+  return `${error.message || ""}\n${error.stderr || ""}`.includes("Another AC control action is still running");
+}
+
 async function recordError(scope, error) {
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const body = `[${new Date().toISOString()}] ${id} ${scope}\n${detailedError(error)}\n\n`;
@@ -63,6 +67,10 @@ async function recordError(scope, error) {
 }
 
 async function sendError(res, scope, error) {
+  if (isControlBusyError(error)) {
+    error.statusCode = 409;
+    error.message = "定时任务或其他空调操作正在执行，请稍后再试";
+  }
   if (error.statusCode === 409) {
     res.writeHead(409, { "content-type": "text/plain; charset=utf-8" });
     res.end(error.message);
