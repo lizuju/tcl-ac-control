@@ -620,7 +620,7 @@ function html() {
     }
 
     function temperatureReady(data, action, value) {
-      const unitMatch = /^unit\/([^/]+)\/temp/.exec(action);
+      const unitMatch = /^unit\\/([^/]+)\\/temp/.exec(action);
       if (unitMatch) {
         const unit = data.units.find((item) => item.name === decodeURIComponent(unitMatch[1]));
         return unit && Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05;
