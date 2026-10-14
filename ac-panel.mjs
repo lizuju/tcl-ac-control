@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
 import { readDiagnostics } from "./doctor.mjs";
+import { isTransientNetworkError } from "./retry.mjs";
 import { panelHost as host, panelListenUrl, panelLocalUrl, panelPort as port } from "./panel-config.mjs";
 import {
   domain,
@@ -82,7 +83,10 @@ async function sendError(res, scope, error) {
   } catch (logError) {
     console.error(logError);
   }
-  const message = `操作失败，错误编号 ${id}。详细信息已写入本机 logs/${panelDetailLog}。`;
+  const detail = `详细信息已写入本机 logs/${panelDetailLog}。`;
+  const message = isTransientNetworkError(error)
+    ? `操作失败，错误编号 ${id}。暂时连不上空调服务器（网络超时或中断），请稍后重试。${detail}`
+    : `操作失败，错误编号 ${id}。${detail}`;
   if (res.headersSent) {
     res.end(`\n${message}`);
     return;
@@ -487,7 +491,9 @@ function html() {
     const unitColumns = ${JSON.stringify(unitColumns)};
     let showScheduleInfo = false;
     let selectedTemperature = temperatureSelect.value;
-    let actionVersion = 0;
+    let controlBusy = false;
+    let statusVersion = 0;
+    let acState;
 
     function reportStatus(message) {
       status.textContent = message;
@@ -522,6 +528,7 @@ function html() {
     }
 
     function renderAcStatus(data, background = false) {
+      acState = data;
       const selections = new Map(background ? Array.from(unitGrid.querySelectorAll(".unitControls"), (controls) => [controls.dataset.unit, controls.querySelector(".unitTemp").value]) : []);
       const allOff = data.closed;
       const className = allOff ? "offState" : data.activeUnits > 0 ? "onState" : "";
@@ -577,6 +584,7 @@ function html() {
       unitGrid.innerHTML = orderedUnits
         .map((column) => '<div class="unitColumn">' + column.map(renderUnit).join("") + '</div>')
         .join("");
+      unitGrid.querySelectorAll("button, select").forEach((control) => control.disabled = controlBusy);
       if (!background) setTemperatureValue(Math.round(Number.parseFloat(data.temperature)));
     }
 
@@ -613,20 +621,23 @@ function html() {
     }
 
     async function refreshAcStatus(background = false) {
+      const version = ++statusVersion;
       if (!background) {
         stateSummary.textContent = "读取中...";
         remoteState.innerHTML = '<span class="dot"></span>读取中';
         remoteMeta.textContent = "正在读取空调状态...";
       }
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 60000);
       try {
         const response = await fetch("/api/status", { signal: controller.signal });
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
+        if (version !== statusVersion) return null;
         renderAcStatus(data, background);
         return data;
       } catch (error) {
+        if (version !== statusVersion) return null;
         stateSummary.textContent = "状态读取失败：" + error.message;
         remoteState.className = "statePill";
         remoteState.innerHTML = '<span class="dot"></span>读取失败';
@@ -641,69 +652,41 @@ function html() {
       await Promise.allSettled([refreshSchedule(), refreshAcStatus()]);
     }
 
-    function temperatureReady(data, action, value) {
-      const unitMatch = /^unit\\/([^/]+)\\/temp/.exec(action);
-      if (unitMatch) {
-        const unit = data.units.find((item) => item.name === decodeURIComponent(unitMatch[1]));
-        return unit && Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05;
-      }
-      return Math.abs(Number.parseFloat(data.temperature) - value) < 0.05
-        && data.units.every((unit) => Math.abs(Number.parseFloat(unit.temperature) - value) < 0.05);
-    }
-
-    async function waitForTemperature(action, version) {
-      const value = Number(new URLSearchParams(action.split("?", 2)[1]).get("value"));
-      const deadline = Date.now() + 60000;
-      while (Date.now() < deadline && version === actionVersion) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        if (version !== actionVersion) return;
-        const data = await refreshAcStatus(true);
-        if (version !== actionVersion) return;
-        if (data && temperatureReady(data, action, value)) {
-          reportStatus("温度已同步：" + value + " °C");
-          return;
-        }
-      }
-      if (version === actionVersion) reportStatus("温度同步超时，请稍后刷新状态");
-    }
-
-    async function waitForPower(version) {
-      const deadline = Date.now() + 60000;
-      while (Date.now() < deadline && version === actionVersion) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        if (version !== actionVersion) return;
-        const data = await refreshAcStatus(true);
-        if (version !== actionVersion) return;
-        if (data && data.totalUnits > 0 && data.units.every((unit) => unit.on)) {
-          reportStatus("空调已打开");
-          return;
-        }
-      }
-      if (version === actionVersion) reportStatus("启动同步超时，请稍后刷新状态");
-    }
-
     async function run(action) {
-      const version = ++actionVersion;
-      const temperatureAction = action.startsWith("temp?") || action.includes("/temp?");
-      const powerAction = action === "on";
+      if (controlBusy) return;
+      controlBusy = true;
+      ++statusVersion;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), temperatureAction || powerAction ? 20000 : 90000);
-      let responseOk = false;
-      document.querySelectorAll("button").forEach((button) => button.disabled = true);
-      reportStatus("正在发送指令...");
+      const timeout = setTimeout(() => controller.abort(), 95000);
+      document.querySelectorAll("button, select, input").forEach((control) => control.disabled = true);
+      reportStatus("正在写入设备并核实实际状态...");
       try {
         const response = await fetch("/api/" + action, { method: "POST", signal: controller.signal });
-        const body = await response.text();
-        responseOk = response.ok;
-        reportStatus(body || (response.ok ? "完成" : "失败"));
-        if (response.ok && temperatureAction) void waitForTemperature(action, version);
-        if (response.ok && powerAction) void waitForPower(version);
+        if (response.ok) {
+          const result = await response.json();
+          ++statusVersion;
+          if (result.unit) {
+            const units = acState.units.map((unit) => unit.name === result.unit.name ? result.unit : unit);
+            renderAcStatus({
+              ...acState, units,
+              activeUnits: units.filter((unit) => unit.on).length,
+              closed: acState.mode === "非占用" && units.every((unit) => unit.off),
+            });
+          } else {
+            renderAcStatus(result.status);
+          }
+          reportStatus(result.message);
+        } else {
+          reportStatus(await response.text());
+          void refreshAcStatus();
+        }
       } catch (error) {
         reportStatus(error.name === "AbortError" ? "请求超时，操作可能仍在执行，请先刷新状态" : error.message);
+        void refreshAcStatus();
       } finally {
         clearTimeout(timeout);
-        document.querySelectorAll("button").forEach((button) => button.disabled = false);
-        if ((!temperatureAction && !powerAction) || !responseOk) void refreshAcStatus(true);
+        controlBusy = false;
+        document.querySelectorAll("button, select, input").forEach((control) => control.disabled = false);
       }
     }
 
@@ -847,7 +830,7 @@ function diagnosticsHtml(data) {
 async function acStatus() {
   const { stdout } = await execFileAsync(process.execPath, [scriptPath, "status", "--json"], {
     cwd: here,
-    timeout: 30000,
+    timeout: 45000,
     maxBuffer: 1024 * 1024,
   });
   return JSON.parse(stdout);
@@ -858,18 +841,21 @@ async function control(action, value) {
   if (action === "temp") {
     const temp = Number(value);
     if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
-    args.push(String(temp), "--submit-only");
+    args.push(String(temp));
   }
-  if (action === "on") args.push("--force", "--submit-only");
-  const { stdout, stderr } = await execFileAsync(process.execPath, args, {
+  if (action === "on") args.push("--force");
+  args.push("--json");
+  const { stdout } = await execFileAsync(process.execPath, args, {
     cwd: here,
     env: { ...process.env, AC_RUN_SOURCE: "panel" },
-    timeout: 180000,
+    timeout: 90000,
     maxBuffer: 1024 * 1024,
   });
-  if (action === "temp") return "温度指令已发送，设备正在同步";
-  if (action === "on") return "打开指令已发送，设备正在同步";
-  return (stdout + stderr).trim();
+  return {
+    message: action === "temp" ? `已核实全部空调温度：${Number(value)} °C`
+      : action === "on" ? "已核实全部空调打开" : "已核实全部空调关闭",
+    status: JSON.parse(stdout),
+  };
 }
 
 async function controlUnit(unit, action, value) {
@@ -878,15 +864,20 @@ async function controlUnit(unit, action, value) {
   if (action === "temp") {
     const temp = Number(value);
     if (!Number.isFinite(temp) || temp < 16 || temp > 30) throw new Error("温度必须在 16 到 30 °C 之间");
-    args.push(String(temp), "--submit-only");
+    args.push(String(temp));
   }
-  const { stdout, stderr } = await execFileAsync(process.execPath, args, {
+  args.push("--json");
+  const { stdout } = await execFileAsync(process.execPath, args, {
     cwd: here,
     env: { ...process.env, AC_RUN_SOURCE: "panel" },
-    timeout: 180000,
+    timeout: 90000,
     maxBuffer: 1024 * 1024,
   });
-  return action === "temp" ? "温度指令已发送，设备正在同步" : (stdout + stderr).trim();
+  return {
+    message: action === "temp" ? `已核实单台温度：${Number(value)} °C`
+      : action === "on" ? "已核实单台打开" : "已核实单台关闭",
+    unit: JSON.parse(stdout),
+  };
 }
 
 async function updateControl(operation) {
@@ -904,6 +895,7 @@ async function updateControl(operation) {
 }
 
 const server = http.createServer(async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   if ((req.method === "GET" || req.method === "HEAD") && req.url === "/") {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(req.method === "HEAD" ? "" : html());
@@ -933,8 +925,9 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/status") {
     try {
+      const data = await acStatus();
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify(await acStatus()));
+      res.end(JSON.stringify(data));
     } catch (error) {
       await sendError(res, "GET /api/status", error);
     }
@@ -978,8 +971,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && match) {
     try {
       const output = await updateControl(() => control(match[1], url.searchParams.get("value")));
-      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-      res.end(output || "完成");
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(output));
     } catch (error) {
       await sendError(res, `POST /api/${match[1]}`, error);
     }
@@ -991,8 +984,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const unit = decodeURIComponent(unitMatch[1]);
       const output = await updateControl(() => controlUnit(unit, unitMatch[2], url.searchParams.get("value")));
-      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
-      res.end(output || "完成");
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(output));
     } catch (error) {
       await sendError(res, `POST /api/unit/${unitMatch[2]}`, error);
     }

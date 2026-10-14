@@ -7,9 +7,11 @@ import { promisify } from "node:util";
 import { requiredEnv } from "./env.mjs";
 import { isLocalPriorityOverride } from "./niagara-status.mjs";
 import { encodeModeValue, encodeTemperatureValue } from "./niagara-values.mjs";
+import { NiagaraBox } from "./niagara-box.mjs";
+import { acquireControlLock } from "./control-lock.mjs";
 import { notify } from "./notify.mjs";
 import { recordRun } from "./runtime-state.mjs";
-import { controlRetryConfig, retryAsync } from "./retry.mjs";
+import { controlRetryConfig, isTransientNetworkError, retryAsync, sleep as abortableSleep } from "./retry.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,6 +24,9 @@ const holidayCacheDir = process.env.AC_HOLIDAY_CACHE_DIR || path.join(here, "hol
 const lockDir = path.join(here, ".ac-control.lock");
 const verifyTimeoutMs = Number(process.env.AC_VERIFY_TIMEOUT_MS || 60000);
 const verifyIntervalMs = Number(process.env.AC_VERIFY_INTERVAL_MS || 3000);
+// The Niagara supervisor is reached over a WAN link, so a single slow round trip must not
+// be mistaken for a dead station. 10s was tight enough that a brief blip aborted the login.
+const requestTimeoutMs = Number(process.env.AC_REQUEST_TIMEOUT_MS || 20000);
 const modeOrd = requiredEnv("AC_MODE_ORD");
 const tempOrd = requiredEnv("AC_TEMP_ORD");
 const vavBaseOrd = requiredEnv("AC_VAV_BASE_ORD").replace(/\/+$/, "");
@@ -41,10 +46,9 @@ const values = {
 };
 
 const jar = new Map();
-let requestId = 0;
-let frameId = 0;
-let serverSessionId = null;
+let boxClient = new NiagaraBox(request);
 let jsonOutput = false;
+let operationSignal;
 
 function log(message) {
   if (!jsonOutput) console.log(message);
@@ -52,9 +56,7 @@ function log(message) {
 
 function resetSession() {
   jar.clear();
-  requestId = 0;
-  frameId = 0;
-  serverSessionId = null;
+  boxClient = new NiagaraBox(request, { signal: operationSignal });
 }
 
 function chinaToday() {
@@ -135,20 +137,19 @@ async function request(target, options = {}) {
   const headers = new Headers(options.headers || {});
   if (jar.size) headers.set("Cookie", cookieHeader());
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 10000);
-  try {
-    const response = await fetch(url, {
-      redirect: options.redirect || "manual",
-      ...options,
-      headers,
-      signal: controller.signal,
-    });
-    updateCookies(response.headers);
-    return { response, body: await response.text() };
-  } finally {
-    clearTimeout(timeout);
-  }
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(options.timeoutMs || requestTimeoutMs),
+    ...(operationSignal ? [operationSignal] : []),
+  ]);
+  signal.throwIfAborted();
+  const response = await fetch(url, {
+    redirect: options.redirect || "manual",
+    ...options,
+    headers,
+    signal,
+  });
+  updateCookies(response.headers);
+  return { response, body: await response.text() };
 }
 
 function scramName(value) {
@@ -226,46 +227,8 @@ async function login(password) {
   await request("/j_security_check/");
 }
 
-async function box(requests) {
-  const frame = {
-    p: "box",
-    v: "2.1",
-    m: requests.map((item) => ({
-      r: ++requestId,
-      t: "rt",
-      c: item.channel,
-      k: item.key,
-      b: item.body,
-    })),
-    n: ++frameId,
-  };
-  if (serverSessionId) frame.id = serverSessionId;
-
-  const item = await request("/box/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(frame),
-  });
-  if (!item.response.ok) throw new Error(`/box/ failed: ${item.response.status}`);
-
-  const response = JSON.parse(item.body);
-  const message = response.m?.[0];
-  if (message?.t === "e") throw new Error(message.b?.m || "BOX request failed");
-  return message?.b;
-}
-
 async function startBoxSession() {
-  serverSessionId = await box([{ channel: "ssession", key: "make", body: {} }]);
-  await box([{
-    channel: "ssession",
-    key: "makessc",
-    body: {
-      id: serverSessionId,
-      scid: "station:",
-      scts: "box:ComponentSpaceSessionHandler",
-      scarg: "station:",
-    },
-  }]);
+  await boxClient.start();
 }
 
 async function resolveMode() {
@@ -277,11 +240,8 @@ async function resolveTemp() {
 }
 
 async function resolveOrd(ord) {
-  return box([{
-    channel: "ord",
-    key: "resolve",
-    body: { o: ord, bo: "station:|slot:/" },
-  }]);
+  const [component] = await boxClient.resolve([ord]);
+  return { o: component };
 }
 
 function slot(component, name) {
@@ -312,35 +272,7 @@ function findVav(name) {
 }
 
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function acquireControlLock() {
-  const timeoutAt = Date.now() + (runSource === "panel" ? 5000 : 120000);
-
-  while (true) {
-    try {
-      await fs.mkdir(lockDir);
-      await fs.writeFile(path.join(lockDir, "pid"), `${process.pid}\n${new Date().toISOString()}\n`);
-      return () => fs.rm(lockDir, { recursive: true, force: true });
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-    }
-
-    try {
-      const stat = await fs.stat(lockDir);
-      if (Date.now() - stat.mtimeMs > 180000) {
-        await fs.rm(lockDir, { recursive: true, force: true });
-        continue;
-      }
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-
-    if (Date.now() > timeoutAt) throw new Error("Another AC control action is still running");
-    await sleep(500);
-  }
+  return abortableSleep(ms, operationSignal);
 }
 
 async function setMode(action, handle) {
@@ -357,18 +289,8 @@ async function releaseForcedPoint(component, ord) {
 }
 
 async function invokeAction(handle, name, param) {
-  const scarg = { h: handle, a: name };
-  if (param) scarg.b = param;
-  return box([{
-    channel: "ssession",
-    key: "callssc",
-    body: {
-      id: serverSessionId,
-      scid: "station:",
-      sck: "invokeAction",
-      scarg,
-    },
-  }]);
+  const [result] = await boxClient.invoke([{ handle, name, param }]);
+  return result;
 }
 
 async function setTemp(value, handle) {
@@ -376,19 +298,19 @@ async function setTemp(value, handle) {
 }
 
 async function releaseForcedSettings(targetVavs = vavs) {
+  const ords = targetVavs.flatMap((vav) => forceReleasePoints.map((point) => `${vav.ord}/${point}`));
+  const components = await boxClient.resolve(ords);
+  const actions = [];
   const released = [];
-
-  for (const vav of targetVavs) {
-    for (const point of forceReleasePoints) {
-      const component = (await resolveOrd(`${vav.ord}/${point}`)).o;
-      if (!isForced(component)) continue;
-      if (!hasAction(component, "emergencyAuto")) {
-        throw new Error(`${vav.name}/${point} is forced but has no emergencyAuto action`);
-      }
-      await invokeAction(component.h, "emergencyAuto");
-      released.push(`${vav.name}/${point}`);
+  for (const [index, component] of components.entries()) {
+    if (!isForced(component)) continue;
+    if (!hasAction(component, "emergencyAuto")) {
+      throw new Error(`${ords[index]} is forced but has no emergencyAuto action`);
     }
+    actions.push({ handle: component.h, name: "emergencyAuto" });
+    released.push(ords[index]);
   }
+  if (actions.length) await boxClient.invoke(actions);
 
   log(`Checked individual overrides: ${targetVavs.length} units, ${targetVavs.length * forceReleasePoints.length} points`);
   if (released.length) log(`Released forced settings: ${released.join(", ")}`);
@@ -400,9 +322,11 @@ async function setVavMode(vav, action) {
 }
 
 async function setAllVavModes(action) {
-  for (const vav of vavs) {
-    await setVavMode(vav, action);
-  }
+  const points = await boxClient.resolve(vavs.map((vav) => `${vav.ord}/${vavModePoint}`));
+  await boxClient.invoke(points.map((point) => ({
+    handle: point.h, name: "set",
+    param: encodeModeValue(values[action].ordinal, range, values[action].display),
+  })));
   log(`Set individual modes: ${vavs.length} units -> ${values[action].display}`);
 }
 
@@ -412,15 +336,12 @@ async function setVavTemp(vav, value) {
 }
 
 async function setAllVavTemps(value) {
-  for (const vav of vavs) {
-    await setVavTemp(vav, value);
-  }
+  const points = await boxClient.resolve(vavs.map((vav) => `${vav.ord}/${vavTempPoint}`));
+  await boxClient.invoke(points.map((point) => ({ handle: point.h, name: "set", param: encodeTemperatureValue(value) })));
   log(`Set individual temperatures: ${vavs.length} units -> ${value.toFixed(1)} °C`);
 }
 
-async function readVavStatus(vav) {
-  const mode = (await resolveOrd(`${vav.ord}/${vavModePoint}`)).o;
-  const temperature = (await resolveOrd(`${vav.ord}/${vavTempPoint}`)).o;
+function vavStatus(vav, mode, temperature) {
   const modeDisplay = currentDisplay(mode);
   return {
     name: vav.name,
@@ -431,11 +352,17 @@ async function readVavStatus(vav) {
   };
 }
 
+async function readVavStatus(vav) {
+  const [mode, temperature] = await boxClient.resolve([`${vav.ord}/${vavModePoint}`, `${vav.ord}/${vavTempPoint}`]);
+  return vavStatus(vav, mode, temperature);
+}
+
 async function readSystemStatus() {
-  const mode = (await resolveMode()).o;
-  const temperature = (await resolveTemp()).o;
-  const units = [];
-  for (const vav of vavs) units.push(await readVavStatus(vav));
+  const [mode, temperature, ...points] = await boxClient.resolve([
+    modeOrd, tempOrd,
+    ...vavs.flatMap((vav) => [`${vav.ord}/${vavModePoint}`, `${vav.ord}/${vavTempPoint}`]),
+  ]);
+  const units = vavs.map((vav, index) => vavStatus(vav, points[index * 2], points[index * 2 + 1]));
   const modeDisplay = currentDisplay(mode);
   const activeUnits = units.filter((unit) => unit.on).length;
   const closed = modeDisplay === values.off.display && units.every((unit) => unit.off);
@@ -484,8 +411,7 @@ async function waitForStatus(predicate, label, timeoutAt = Date.now() + verifyTi
   return status;
 }
 
-async function waitForUnitStatus(vav, predicate, label) {
-  const timeoutAt = Date.now() + verifyTimeoutMs;
+async function waitForUnitStatus(vav, predicate, label, timeoutAt) {
   let status = await readVavStatus(vav);
 
   while (!predicate(status) && Date.now() < timeoutAt) {
@@ -523,6 +449,7 @@ async function closeWithVerification() {
   }
   log(`Close verification: ${status.closed ? "success" : "failed"}`);
   if (!status.closed) throw new Error(`close failed after second attempt: ${summarizeStatus(status)}`);
+  return status;
 }
 
 async function openWithVerification() {
@@ -540,6 +467,7 @@ async function openWithVerification() {
   const success = allUnitsInMode(status, "on");
   log(`Open verification: ${success ? "success" : "failed"}`);
   if (!success) throw new Error(`open failed after second attempt: ${summarizeStatus(status)}`);
+  return status;
 }
 
 async function applyTemperature(value) {
@@ -571,16 +499,19 @@ async function setTemperatureWithVerification(value) {
       .filter((unit) => !temperatureMatches(unit.temperature, value))
       .map((unit) => `${unit.name} ${unit.temperature}`);
     log(`Temperature verification failed: ${mismatched.join(", ") || `global ${status.temperature}`}, retrying once`);
-    await applyTemperature(value);
-    status = await waitForStatus(
-      (item) => allTemperaturesMatch(item, value),
-      "Temperature verification retry check",
-      timeoutAt,
-    );
+    if (Date.now() < timeoutAt) {
+      await applyTemperature(value);
+      status = await waitForStatus(
+        (item) => allTemperaturesMatch(item, value),
+        "Temperature verification retry check",
+        timeoutAt,
+      );
+    }
   }
   const success = allTemperaturesMatch(status, value);
   log(`Temperature verification: ${success ? "success" : "failed"}`);
   if (!success) throw new Error(`temperature is not ${value.toFixed(1)} °C after second set: ${summarizeStatus(status)}`);
+  return status;
 }
 
 async function applyUnitMode(vav, action) {
@@ -591,15 +522,18 @@ async function applyUnitMode(vav, action) {
 
 async function setUnitModeWithVerification(name, action) {
   const vav = findVav(name);
+  const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyUnitMode(vav, action);
-  let status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification check`);
-  if (!status[action]) {
+  const firstTimeoutAt = Date.now() + Math.max(0, Math.floor((timeoutAt - Date.now()) / 2));
+  let status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification check`, firstTimeoutAt);
+  if (!status[action] && Date.now() < timeoutAt) {
     log(`${vav.name} mode verification failed, retrying once`);
     await applyUnitMode(vav, action);
-    status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification retry check`);
+    status = await waitForUnitStatus(vav, (item) => item[action], `${vav.name} mode verification retry check`, timeoutAt);
   }
   log(`${vav.name} mode verification: ${status[action] ? "success" : "failed"}`);
   if (!status[action]) throw new Error(`${vav.name} mode is not ${values[action].display} after second set: ${summarizeUnitStatus(status)}`);
+  return status;
 }
 
 async function applyUnitTemperature(vav, value) {
@@ -610,16 +544,19 @@ async function applyUnitTemperature(vav, value) {
 
 async function setUnitTemperatureWithVerification(name, value) {
   const vav = findVav(name);
+  const timeoutAt = Date.now() + verifyTimeoutMs;
   await applyUnitTemperature(vav, value);
-  let status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification check`);
-  if (!temperatureMatches(status.temperature, value)) {
+  const firstTimeoutAt = Date.now() + Math.max(0, Math.floor((timeoutAt - Date.now()) / 2));
+  let status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification check`, firstTimeoutAt);
+  if (!temperatureMatches(status.temperature, value) && Date.now() < timeoutAt) {
     log(`${vav.name} temperature verification failed, retrying once`);
     await applyUnitTemperature(vav, value);
-    status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification retry check`);
+    status = await waitForUnitStatus(vav, (item) => temperatureMatches(item.temperature, value), `${vav.name} temperature verification retry check`, timeoutAt);
   }
   const success = temperatureMatches(status.temperature, value);
   log(`${vav.name} temperature verification: ${success ? "success" : "failed"}`);
   if (!success) throw new Error(`${vav.name} temperature is not ${value.toFixed(1)} °C after second set: ${summarizeUnitStatus(status)}`);
+  return status;
 }
 
 async function keychainPassword() {
@@ -631,9 +568,10 @@ async function keychainPassword() {
       "-a",
       username,
       "-w",
-    ]);
+    ], { signal: operationSignal });
     return stdout.trimEnd();
   } catch {
+    operationSignal?.throwIfAborted();
     return "";
   }
 }
@@ -677,7 +615,6 @@ async function password() {
 
 const action = process.argv[2] || "status";
 const force = process.argv.includes("--force") || process.env.AC_FORCE === "1";
-const submitOnly = process.argv.includes("--submit-only");
 const runSource = process.env.AC_RUN_SOURCE || "manual";
 jsonOutput = process.argv.includes("--json");
 if (!["status", "on", "off", "temp", "unit-on", "unit-off", "unit-temp"].includes(action)) {
@@ -711,49 +648,65 @@ if (action === "on" && !force) {
   }
 }
 
-const unlock = action === "status" ? null : await acquireControlLock();
+let unlock;
 try {
   const retryConfig = controlRetryConfig({ action, source: runSource });
-  await retryAsync(async () => {
+  const result = await retryAsync(async (_, signal) => {
+    operationSignal = signal;
+    if (action !== "status" && !unlock) {
+      unlock = await acquireControlLock(lockDir, {
+        timeoutMs: runSource === "panel" ? 5000 : 120000,
+        signal,
+      });
+    }
     resetSession();
     await login(await password());
-    await startBoxSession();
-
-    if (action === "status") {
-      const status = await readSystemStatus();
-      if (jsonOutput) {
-        console.log(JSON.stringify(status));
+    try {
+      await startBoxSession();
+      const targetVavs = unitName ? [findVav(unitName)] : vavs;
+      const pointNames = action === "status" ? [vavModePoint, vavTempPoint] : forceReleasePoints;
+      await boxClient.subscribe([
+        ...(unitName ? [] : [modeOrd, tempOrd]),
+        ...targetVavs.flatMap((vav) => pointNames.map((point) => `${vav.ord}/${point}`)),
+      ]);
+      if (action === "status") {
+        const status = await readSystemStatus();
+        if (!jsonOutput) {
+          log(`Mode: ${status.mode}`);
+          log(`Temperature: ${status.temperature}`);
+          log(`Units occupied: ${status.activeUnits}/${status.totalUnits}`);
+        }
+        return status;
+      } else if (action === "temp") {
+        return await setTemperatureWithVerification(tempValue);
+      } else if (action === "off") {
+        return await closeWithVerification();
+      } else if (action === "unit-on") {
+        return await setUnitModeWithVerification(unitName, "on");
+      } else if (action === "unit-off") {
+        return await setUnitModeWithVerification(unitName, "off");
+      } else if (action === "unit-temp") {
+        return await setUnitTemperatureWithVerification(unitName, tempValue);
       } else {
-        log(`Mode: ${status.mode}`);
-        log(`Temperature: ${status.temperature}`);
-        log(`Units occupied: ${status.activeUnits}/${status.totalUnits}`);
+        return await openWithVerification();
       }
-    } else if (action === "temp") {
-      if (submitOnly) await applyTemperature(tempValue);
-      else await setTemperatureWithVerification(tempValue);
-    } else if (action === "off") {
-      await closeWithVerification();
-    } else if (action === "unit-on") {
-      await setUnitModeWithVerification(unitName, "on");
-    } else if (action === "unit-off") {
-      await setUnitModeWithVerification(unitName, "off");
-    } else if (action === "unit-temp") {
-      if (submitOnly) await applyUnitTemperature(findVav(unitName), tempValue);
-      else await setUnitTemperatureWithVerification(unitName, tempValue);
-    } else {
-      if (submitOnly) await applyMode("on");
-      else await openWithVerification();
+    } finally {
+      await boxClient.close().catch((error) => console.error(`BOX session cleanup failed: ${error.message}`));
     }
   }, {
-    ...retryConfig,
+    attempts: retryConfig.attempts,
+    delayMs: retryConfig.delayMs,
+    budgetMs: retryConfig.budgetMs,
+    shouldRetry: retryConfig.retryOnlyTransient ? isTransientNetworkError : undefined,
     onRetry(error, attempt, attempts, delayMs) {
       log(`Attempt ${attempt}/${attempts} failed: ${errorDetail(error)}`);
       log(`Retrying in ${Math.round(delayMs / 1000)} seconds`);
     },
   });
 
+  if (jsonOutput) console.log(JSON.stringify(result));
   if (action !== "status") {
-    await recordRun({ action, source: runSource, ok: true, detail: submitOnly ? "submitted" : "completed" });
+    await recordRun({ action, source: runSource, ok: true, detail: "verified" });
   }
 } catch (error) {
   if (action !== "status") {

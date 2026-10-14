@@ -92,7 +92,13 @@ node --test
 
 每次打开、关闭、设置温度或节假日跳过都会记录到本机 `runtime-state.json`，诊断页会显示最近一次执行结果。如果配置了 `AC_NOTIFY_WEBHOOK`，控制失败或看门狗异常会发送 JSON 通知。
 
-定时任务的临时失败会自动重试。默认 `AC_CONTROL_ATTEMPTS=3`、`AC_CONTROL_RETRY_DELAY_MS=60000`，也就是失败后等待 60 秒再试，最多尝试 3 次。手动命令和面板操作默认只尝试 1 次，避免交互操作长时间阻塞；如需统一修改，可在 `.env` 中设置这两个变量。
+定时任务的临时失败会自动重试。默认 `AC_CONTROL_ATTEMPTS=3`、`AC_CONTROL_RETRY_DELAY_MS=60000`，也就是失败后等待 60 秒再试，最多尝试 3 次。
+
+面板和手工命令也会重试，但只针对临时的网络故障（请求被中断、连接掉线），而且只快速重试几次：`AC_INTERACTIVE_ATTEMPTS=3`、`AC_INTERACTIVE_RETRY_DELAY_MS=3000`，并受 `AC_INTERACTIVE_BUDGET_MS=75000` 总时长限制。真正的控制失败（点位名写错、点位切不过去）仍然立即返回，不做无意义的重试。状态读取只快速重试一次（`AC_STATUS_ATTEMPTS=2`、`AC_STATUS_RETRY_DELAY_MS=2000`）。
+
+总时限覆盖控制锁等待、登录、写入、状态回读和重试等待；到期会取消正在等待的请求。操作成功后，面板直接显示后端已核实的状态。
+
+每次访问 Niagara 站点的超时由 `AC_REQUEST_TIMEOUT_MS=20000` 控制。只有面板和站点在同一局域网时才建议调小；链路较慢时调大。
 
 ### 安全说明
 

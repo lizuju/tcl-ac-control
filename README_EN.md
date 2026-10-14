@@ -92,7 +92,13 @@ Scheduled `on` skips weekends and China public holidays. Manual panel `on` uses 
 
 Every on, off, temperature change, or holiday skip is recorded in the local `runtime-state.json`; the diagnostics page shows the latest run result. If `AC_NOTIFY_WEBHOOK` is configured, control failures and watchdog failures send JSON notifications.
 
-Scheduled commands retry transient failures by default. `AC_CONTROL_ATTEMPTS=3` and `AC_CONTROL_RETRY_DELAY_MS=60000` mean retry after 60 seconds, up to 3 attempts. Manual CLI and panel actions default to 1 attempt so interactive operations do not block for too long; set these two variables in `.env` to override that behavior.
+Scheduled commands retry transient failures by default. `AC_CONTROL_ATTEMPTS=3` and `AC_CONTROL_RETRY_DELAY_MS=60000` mean retry after 60 seconds, up to 3 attempts.
+
+Panel and manual commands also retry, but only transient network failures (an aborted request, a dropped connection) and only a few times quickly: `AC_INTERACTIVE_ATTEMPTS=3` and `AC_INTERACTIVE_RETRY_DELAY_MS=3000`, capped by `AC_INTERACTIVE_BUDGET_MS=75000`. A real control failure — an unknown unit, a point that will not switch — still fails immediately instead of retrying. Status reads get a single quick retry (`AC_STATUS_ATTEMPTS=2`, `AC_STATUS_RETRY_DELAY_MS=2000`).
+
+The total budget covers waiting for the control lock, login, writes, readback, and retry delays; expiration cancels pending requests. Successful panel actions immediately render the verified backend state.
+
+Each request to the station is capped by `AC_REQUEST_TIMEOUT_MS=20000`. Lower it only if the panel is on the same LAN as the station; raise it if the link is slow.
 
 ### Safety Notes
 
