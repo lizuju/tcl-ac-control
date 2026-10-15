@@ -299,7 +299,9 @@ function html() {
     .step{width:44px;height:44px;display:grid;place-items:center;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;font-size:24px}
     .step:hover:not(:disabled){background:#dce9fb}
     .big-temp{display:flex;align-items:center;justify-content:center;gap:3px;font-size:40px;line-height:1.2}
-    .big-temp select{width:85px;min-width:0;padding:0 4px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;text-align:center;text-align-last:center;font:inherit;cursor:pointer}
+    .temp-select{position:relative;flex:0 0 96px}
+    .temp-select svg{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#275b99;pointer-events:none}
+    .big-temp select{appearance:none;-webkit-appearance:none;display:block;width:100%;min-width:0;height:60px;padding:0 22px 0 6px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;text-align:center;text-align-last:center;font:inherit;cursor:pointer}
     .big-temp small{font-size:17px;font-weight:400}
     .apply{width:100%;min-height:44px;border:1px solid #2e65aa;border-radius:6px;background:#2e65aa;color:#fff;font-weight:500}
     .apply:hover:not(:disabled){background:#24538e}
@@ -384,7 +386,7 @@ function html() {
         <h2>全部空调</h2>
         <button class="power" id="powerToggle" type="button" disabled>等待读取设备状态</button>
         <div class="temp-title"><label for="temperature">设定温度</label></div>
-        <div class="temp-control"><button class="step" id="tempMinus" type="button" aria-label="降低设定温度" disabled>−</button><div class="big-temp"><select id="temperature" aria-label="全部设备设定温度" disabled><option value="" selected>—</option>${Array.from({ length: 13 }, (_, index) => `<option value="${index + 18}">${index + 18}</option>`).join("")}</select><small>°C</small></div><button class="step" id="tempPlus" type="button" aria-label="提高设定温度" disabled>+</button></div>
+        <div class="temp-control"><button class="step" id="tempMinus" type="button" aria-label="降低设定温度" disabled>−</button><div class="big-temp"><div class="temp-select"><select id="temperature" aria-label="全部设备设定温度" disabled><option value="" selected>—</option>${Array.from({ length: 13 }, (_, index) => `<option value="${index + 18}">${index + 18}</option>`).join("")}</select><svg aria-hidden="true"><use href="#down"/></svg></div><small>°C</small></div><button class="step" id="tempPlus" type="button" aria-label="提高设定温度" disabled>+</button></div>
         <button class="apply" id="tempSet" type="button" disabled>应用温度</button>
       </section>
       <section class="card schedule-card schedule" id="schedule">
@@ -490,7 +492,7 @@ function html() {
           '<svg class="chevron" aria-hidden="true"><use href="#down"/></svg></summary>' +
           '<div class="unitBody unitControls" data-unit="' + escapeHtml(unit.name) + '">' +
           '<label>单台设定温度<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 设定温度">' + options + '</select></label>' +
-          '<div class="unitActions"><button class="quiet-button unitToggle" type="button" data-action="' + (unit.on ? "off" : "on") + '">' + (unit.on ? "关闭这台" : "开启这台") + '</button>' +
+          '<div class="unitActions"><button class="quiet-button unitToggle" type="button" data-action="' + (unit.on ? "off" : "on") + '">' + (unit.on ? "关闭" : "开启") + '</button>' +
           '<button class="quiet-button unitTempSet" type="button">应用温度</button></div></div></details>';
       };
       unitGrid.innerHTML = orderedUnits.map((column) => '<div class="unitColumn">' + column.map(renderUnit).join("") + '</div>').join("");
