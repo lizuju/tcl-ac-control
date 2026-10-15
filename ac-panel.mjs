@@ -230,7 +230,7 @@ function html() {
     button,input,select{font:inherit}
     button,a,input,select{-webkit-tap-highlight-color:transparent}
     button{cursor:pointer}
-    button:disabled{cursor:default;opacity:.45}
+    button:disabled{cursor:default}
     button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #6a9f82;outline-offset:3px}
     a{color:inherit;text-decoration:none}
     svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
@@ -242,8 +242,8 @@ function html() {
     h3{margin:0;font-size:15px;font-weight:500}
     .header-right{display:flex;align-items:center;gap:16px;flex-shrink:0}
     .connection{font-size:12px;color:var(--muted)}
-    .quiet-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)}
-    .quiet-button:hover{background:#f4f6f7}
+    .quiet-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid #bed0e8;border-radius:7px;background:#eaf2fe;color:#275b99}
+    .quiet-button:hover:not(:disabled){background:#dce9fb}
     .overview{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:28px;background:#fff;border:1px solid var(--line);border-radius:8px}
     .overview-status{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
     .overview-state{display:flex;align-items:center;gap:9px;font-size:18px;font-weight:600;color:var(--muted)}
@@ -266,6 +266,8 @@ function html() {
     .unit[data-on=true]{border-left-color:var(--green)}
     .unit[data-on=unknown]{border-left-color:#b88628}
     .unit summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px;min-height:92px;cursor:pointer}
+    .unit summary:hover,.unit[open] summary{background:#f4f8fd}
+    .unit summary .chevron{width:26px;height:26px;padding:5px;border-radius:6px;background:#eaf2fe;color:#275b99}
     .unit summary::-webkit-details-marker,.schedule-edit summary::-webkit-details-marker{display:none}
     .unitInfo{min-width:0;flex:1}
     .unitName{overflow-wrap:anywhere}
@@ -279,27 +281,28 @@ function html() {
     .unit[open]{z-index:2}
     .unitBody{padding:0 16px 16px;border-top:1px solid var(--line);background:#fff}
     .unitBody label{display:block;font-size:13px;margin-top:14px;color:var(--muted)}
-    .unitBody select{display:block;width:100%;height:44px;margin-top:8px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+    .unitBody select{display:block;width:100%;height:44px;margin-top:8px;padding:0 10px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99}
     .unitActions{display:flex;gap:8px;margin-top:12px}
     .unitActions button{flex:1;padding:0 8px;font-size:13px}
-    .unit[data-on=false] .unitToggle{color:var(--green)}
-    .unit[data-on=true] .unitToggle{color:var(--off)}
+    .unitToggle[data-action=on]{background:#e7f2eb;border-color:#b6d1c0;color:var(--green)}
+    .unitToggle[data-action=off]{background:#fbece9;border-color:#e0beb8;color:#a34439}
     .unitGrid[data-stale=true]{opacity:.5}
     .aside{display:grid;gap:18px}
     .card{border:1px solid var(--line);border-radius:8px;background:#fff;padding:20px}
     .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
     .power{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;margin:18px 0 20px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:#fff;font-weight:500}
     .power:hover{background:#1c603c}
-    .power.is-on{background:#fff;color:var(--ink);border-color:#cbd3d9}
-    .power.is-on:hover{background:#f4f6f7}
+    .power.is-on{background:#a9473f;color:#fff;border-color:#a9473f}
+    .power.is-on:hover:not(:disabled){background:#913d36}
     .temp-title{font-size:13px;color:var(--muted)}
     .temp-control{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;margin:10px 0 14px}
-    .step{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:24px}
+    .step{width:44px;height:44px;display:grid;place-items:center;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;font-size:24px}
+    .step:hover:not(:disabled){background:#dce9fb}
     .big-temp{display:flex;align-items:center;justify-content:center;gap:3px;font-size:40px;line-height:1.2}
-    .big-temp select{appearance:none;-webkit-appearance:none;width:65px;min-width:0;padding:0;border:0;border-radius:4px;background:transparent;color:var(--ink);text-align:center;text-align-last:center;font:inherit;cursor:pointer}
+    .big-temp select{width:85px;min-width:0;padding:0 4px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;text-align:center;text-align-last:center;font:inherit;cursor:pointer}
     .big-temp small{font-size:17px;font-weight:400}
-    .apply{width:100%;min-height:44px;border:1px solid #cbd3d9;border-radius:6px;background:#fff;color:var(--ink);font-weight:500}
-    .apply:hover:not(:disabled){background:#f4f6f7}
+    .apply{width:100%;min-height:44px;border:1px solid #2e65aa;border-radius:6px;background:#2e65aa;color:#fff;font-weight:500}
+    .apply:hover:not(:disabled){background:#24538e}
     .tag{font-size:13px;color:var(--green);white-space:nowrap}
     .tag[data-state=off]{color:var(--muted)}
     .tag[data-state=error]{color:#af3b35}
@@ -308,13 +311,16 @@ function html() {
     .schedule-time strong{display:block;font-size:26px;font-weight:500}
     .schedule-time span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .schedule-edit{border-top:1px solid var(--line);padding-top:4px}
-    .schedule-edit summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;list-style:none;cursor:pointer;font-size:13px}
-    .schedule-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 14px}
-    .schedule-fields label{font-size:13px;color:var(--muted)}
-    input[type=time]{width:100%;height:44px;margin-top:6px;padding:0 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+    .schedule-edit summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;margin-top:10px;padding:0 12px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;list-style:none;cursor:pointer;font-size:13px}
+    .schedule-edit summary:hover{background:#dce9fb}
+    .schedule-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0 14px}
+    .schedule-fields label{min-width:0;font-size:13px;color:var(--muted)}
+    input[type=time]{display:block;width:100%;min-width:0;max-width:100%;height:44px;margin-top:6px;padding:0 7px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99}
+    .shell :is(button,select,input):disabled{background:#eef0f2;border-color:#dfe3e7;color:#8a949d;cursor:default;opacity:1}
     .schedule-detail{color:#af3b35;font-size:13px;overflow-wrap:anywhere}
     .schedule-detail:empty{display:none}
-    .diagnostics{justify-self:end;display:flex;align-items:center;gap:6px;min-height:44px;color:var(--muted);font-size:13px}
+    .diagnostics{justify-self:end;display:flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border:1px solid #bed0e8;border-radius:6px;background:#eaf2fe;color:#275b99;font-size:13px}
+    .diagnostics:hover{background:#dce9fb}
     .diagnostics svg{width:16px;height:16px}
     .feedback{position:sticky;top:12px;z-index:3;margin:-12px 0 20px;padding:12px 16px;border:1px solid #bdd4c4;border-radius:6px;background:#edf6ef;color:#24633e;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
     .feedback:empty{display:none}
@@ -346,6 +352,7 @@ function html() {
       .unit summary{min-height:80px;padding:13px 16px}
       .unitMeta{margin-top:3px}
       .unitBody select,input[type=time]{font-size:16px}
+      .schedule-fields{grid-template-columns:minmax(0,1fr)}
       .feedback{margin:-6px 0 16px;padding:10px 12px}
       .diagnostics{align-self:flex-end;margin-top:-12px}
     }
