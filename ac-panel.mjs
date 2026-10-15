@@ -224,326 +224,171 @@ function html() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${xml(panelTitle)}</title>
   <style>
-    :root{color-scheme:light;--ink:#1d3431;--muted:#687b77;--line:#dce5e1;--paper:#fff;--canvas:#f1f5f2;--green:#14745e;--soft:#eaf3ee;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;font-synthesis:none}
+    :root{color-scheme:light;--ink:#263238;--muted:#6a757d;--line:#e1e5e8;--canvas:#f6f7f8;--green:#24734a;--off:#55738d;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;font-synthesis:none}
     *{box-sizing:border-box}
-    html{scroll-behavior:smooth;scroll-padding-top:24px}
     body{margin:0;background:var(--canvas);color:var(--ink);font-size:14px;line-height:1.5}
     button,input,select{font:inherit}
     button,a,input,select{-webkit-tap-highlight-color:transparent}
     button{cursor:pointer}
     button:disabled{cursor:default;opacity:.45}
-    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #62a992;outline-offset:4px}
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #6a9f82;outline-offset:3px}
     a{color:inherit;text-decoration:none}
     svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
     .svg-library{position:absolute;width:0;height:0;overflow:hidden}
-    .shell{width:min(1180px,calc(100% - 64px));margin:0 auto;padding:40px 0 24px}
-    .masthead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}
-    .identity{display:flex;align-items:center;gap:14px}
-    .brand{width:48px;height:48px;border-radius:13px;background:var(--ink);color:white;display:grid;place-items:center}
-    .brand svg{width:27px;height:27px}
-    .eyebrow{color:var(--muted);font-size:12px;letter-spacing:1.8px;margin-bottom:3px}
-    h1{margin:0;font-size:26px;letter-spacing:-.6px;font-weight:650}
-    h2{font-size:17px;line-height:1.4;margin:0;font-weight:650}
-    h3{margin:0;font-size:15px;font-weight:600}
-    .header-right{display:flex;align-items:center;gap:18px}
+    .shell{width:min(1120px,calc(100% - 64px));margin:0 auto;padding:32px 0}
+    .masthead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}
+    h1{margin:0;font-size:24px;font-weight:600;overflow-wrap:anywhere}
+    h2{margin:0;font-size:16px;font-weight:600}
+    h3{margin:0;font-size:15px;font-weight:500}
+    .header-right{display:flex;align-items:center;gap:16px;flex-shrink:0}
     .connection{font-size:12px;color:var(--muted)}
-    .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#25825b;vertical-align:middle;margin-right:7px}
-    .quiet-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:13px}
-    .quiet-button:hover{background:#f7faf8}
-    .mobile-nav{display:none}
-    .overview{display:grid;grid-template-columns:1.3fr 1fr 1.1fr;border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:23px 26px;margin-bottom:28px;gap:24px}
-    .overview>div+div{border-left:1px solid var(--line);padding-left:28px}
-    .overline{font-size:12px;color:var(--muted);margin-bottom:9px}
-    .overview-value{font-size:26px;font-weight:550;letter-spacing:-.8px;display:flex;align-items:baseline;gap:8px}
-    .overview-value small{font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0}
-    .overview-note{font-size:12px;color:var(--muted);margin-top:5px}
-    .numeric{font-family:ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:-1.5px;font-weight:500}
-    .overview-state{font-size:22px;letter-spacing:-.4px}
-    .overview-state svg{align-self:center;width:21px;height:21px;color:var(--muted);margin-right:2px}
-    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:28px;align-items:start}
-    .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;min-height:28px}
-    .section-head span{font-size:12px;color:var(--muted)}
-    .unitGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
-    .unitColumn{display:grid;gap:12px}
-    .unit{border:1px solid var(--line);border-radius:13px;background:white;overflow:hidden}
-    .unit summary{list-style:none;display:flex;gap:12px;align-items:center;padding:18px;cursor:pointer;min-height:102px}
-    .unit summary::-webkit-details-marker{display:none}
-    .unitIcon{width:39px;height:39px;border-radius:11px;background:#eff3f1;display:grid;place-items:center;color:#80918a;flex-shrink:0}
-    .unit[data-on=true] .unitIcon{background:var(--soft);color:var(--green)}
+    .quiet-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)}
+    .quiet-button:hover{background:#f4f6f7}
+    .overview{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:28px;background:#fff;border:1px solid var(--line);border-radius:8px}
+    .overview-status{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    .overview-state{display:flex;align-items:center;gap:9px;font-size:18px;font-weight:600;color:var(--muted)}
+    .overview-state::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+    .overview[data-state=on] .overview-state{color:var(--green)}
+    .overview[data-state=off] .overview-state{color:var(--off)}
+    .overview[data-state=mixed] .overview-state,.overview[data-state=unknown] .overview-state{color:#946116}
+    .overview[data-state=error] .overview-state{color:#af3b35}
+    .state-count{color:var(--muted);font-size:13px}
+    .overview-temperature{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+    .overview-temperature label{font-size:13px;color:var(--muted)}
+    .overview-temperature strong{font-size:25px;font-weight:500}
+    .overview-temperature small{font-size:13px}
+    .numeric{font-variant-numeric:tabular-nums}
+    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;align-items:start}
+    .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .unitGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+    .unitColumn{display:grid;gap:14px}
+    .unit{position:relative;border:1px solid var(--line);border-left:3px solid var(--off);border-radius:8px;background:#fff}
+    .unit[data-on=true]{border-left-color:var(--green)}
+    .unit[data-on=unknown]{border-left-color:#b88628}
+    .unit summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px;min-height:92px;cursor:pointer}
+    .unit summary::-webkit-details-marker,.schedule-edit summary::-webkit-details-marker{display:none}
     .unitInfo{min-width:0;flex:1}
-    .unitCode{font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:0}
-    .unitMeta{font-size:11px;color:var(--muted);margin-top:4px}
-    .unit[data-on=true] .unitMeta{color:var(--green)}
-    .unitBadge{text-align:right;flex-shrink:0}
-    .unitBadge strong{font-size:22px;letter-spacing:-1px;font-weight:500}
-    .unitBadge small{font-size:11px;color:var(--muted);margin-left:2px}
-    .chevron{color:#8b9b93;width:15px;height:15px;transition:transform .18s}
-    .unit[open] .chevron{transform:rotate(180deg)}
-    .unitBody{padding:0 18px 17px;border-top:1px solid #eff3f0}
-    .unitBody label{display:block;color:var(--muted);font-size:12px;margin:14px 0 8px}
-    .unitActions{display:flex;gap:8px;margin-top:12px}
-    .unitActions button{flex:1;font-size:12px;padding:0 9px}
-    .unitBody select{width:100%;height:44px;border:1px solid var(--line);border-radius:9px;padding:0 12px;background:white;color:var(--ink)}
-    .aside{display:grid;gap:18px}
-    .card{border:1px solid var(--line);border-radius:16px;background:white;padding:23px}
-    .card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .scope{font-size:12px;color:var(--muted);margin-top:6px}
-    .tag{font-size:11px;padding:4px 9px;border-radius:6px;background:var(--soft);color:var(--green);white-space:nowrap}
-    .power{margin:20px 0 22px;width:100%;height:48px;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--green);border-radius:10px;color:white;background:var(--green);font-size:14px;font-weight:550}
-    .power:hover{background:#0f6451}
-    .power.is-on{background:#fff;color:var(--ink);border-color:var(--line)}
-    .power.is-on:hover{background:#f3f7f4}
-    .temp-title{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
-    .temp-title span+span{color:var(--green)}
-    .temp-control{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin:16px 0}
-    .step{width:44px;height:44px;border:1px solid var(--line);background:#f7faf8;border-radius:10px;color:var(--ink);font-size:24px;font-weight:400;display:grid;place-items:center}
-    .big-temp{text-align:center;font-size:50px;line-height:1.2;letter-spacing:-3px}
-    .big-temp small{font:400 19px -apple-system,sans-serif;letter-spacing:0;color:var(--muted);margin-left:4px}
-    .apply{width:100%;min-height:44px;border:1px solid #cfdcd3;border-radius:9px;background:var(--soft);color:var(--green);font-weight:550;font-size:13px}
-    .apply:hover:not(:disabled){background:#dcebe1}
-    .temp-hint{font-size:11px;color:var(--muted);margin:12px 0 0;line-height:1.6}
-    .schedule-times{display:flex;align-items:center;justify-content:space-between;margin:22px 0 16px;gap:8px}
-    .schedule-time strong{font-size:25px;letter-spacing:-1px;font-weight:500;display:block;line-height:1.2}
-    .schedule-time span{display:block;font-size:11px;color:var(--muted);margin-top:6px}
-    .schedule-line{flex:1;height:1px;background:var(--line);margin:0 15px 20px}
-    .schedule-rule{font-size:11px;color:var(--muted);line-height:1.75;margin:0}
-    .schedule-edit{margin-top:17px;border-top:1px solid var(--line);padding-top:13px}
-    .schedule-edit summary{font-size:12px;color:var(--green);cursor:pointer;list-style:none;min-height:32px;display:flex;align-items:center;justify-content:space-between}
-    .schedule-edit summary::-webkit-details-marker{display:none}
-    .schedule-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:9px 0 12px}
-    .schedule-fields label{font-size:11px;color:var(--muted)}
-    input[type=time]{width:100%;height:42px;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:0 7px}
-    .schedule-edit .unitActions{margin-top:10px}
-    .schedule-edit button{min-height:44px}
-    .diagnostics{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:0 6px;border:0;color:var(--muted);background:none;text-align:left;font-size:12px}
-    .diagnostics span{display:flex;align-items:center;gap:8px}
-    .diagnostics svg{width:18px;height:18px}
-    .bottom-note{margin-top:23px;color:var(--muted);font-size:11px;display:flex;align-items:center;gap:6px}
-    .bottom-note svg{width:14px;height:14px}
-    .footer{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:36px;padding-top:16px;font-size:11px;color:var(--muted)}
-    .overview-state svg{display:none}
-    .overview-state span{display:inline-flex;align-items:center;gap:8px;padding:6px 11px;border-radius:8px;font-size:20px;line-height:1.35}
-    .overview-state span::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-    .overview[data-state=off] .overview-state span{background:#e4edf7;color:#416888}
-    .overview[data-state=on] .overview-state span{background:#d9efdf;color:#1a6941}
-    .overview[data-state=mixed] .overview-state span{background:#fff0cb;color:#8a5c13}
-    .unit{border-left-width:4px}
-    .unit[data-on=false]{border-color:#c4d7e7;border-left-color:#7298be;background:#f7fafc}
-    .unit[data-on=true]{border-color:#acd5b9;border-left-color:#278355;background:#f4fbf6}
-    .unit[data-on=false] .unitIcon{background:#e3edf7;color:#4c7599}
-    .unit[data-on=true] .unitIcon{background:#d8efdf;color:#1a6941}
-    .unit .unitMeta{display:inline-flex;align-items:center;gap:5px;width:fit-content;font-size:11px;line-height:1.3;padding:3px 6px;border-radius:5px;margin-top:6px}
-    .unit .unitMeta::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
-    .unit[data-on=false] .unitMeta{color:#416888;background:#e3edf7}
-    .unit[data-on=true] .unitMeta{color:#1a6941;background:#d8efdf}
-    .legend{display:flex;gap:12px;align-items:center}
-    .legend .legend-item{font-size:11px;display:inline-flex;align-items:center;gap:5px}
-    .legend-item::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
-    .legend .legend-on{color:#24794d}
-    .legend .legend-off{color:#557fa7}
-    .position-note{font-size:11px;color:var(--muted);margin:-6px 0 13px}
-    .unit .unitActions .unitToggle{background:#fff;border-color:#c3d4d0}
-    .unit[data-on=false] .unitToggle{color:#146642;background:#e2f0e7;border-color:#bdd5c5}
-    .unit[data-on=true] .unitToggle{color:#426380;background:#edf3f8;border-color:#bed0df}
-    @media(min-width:1100px){.workspace{gap:34px}
-    .unitGrid{gap:16px}
-    .unitColumn{gap:16px}
-    .unit summary{padding:20px}
-    }
-    @media(max-width:900px){.shell{width:calc(100% - 40px)}
-    .workspace{grid-template-columns:1fr;gap:24px}
-    .aside{grid-template-columns:1fr 1fr}
-    .diagnostics{grid-column:1 / -1}
-    .overview{padding:20px;gap:16px}
-    .overview>div+div{padding-left:16px}
-    .overview-value{font-size:23px}
-    .overview-state{font-size:19px}
-    .card{padding:20px}
-    }
-    @media(max-width:640px){html{scroll-padding-top:16px}
-    .shell{width:calc(100% - 32px);padding-top:22px}
-    .masthead{margin-bottom:20px}
-    .identity{gap:10px}
-    .brand{width:40px;height:40px;border-radius:11px}
-    .brand svg{width:24px;height:24px}
-    .eyebrow{font-size:10px;letter-spacing:1px}
-    h1{font-size:21px;letter-spacing:-.5px}
-    .header-right{gap:0}
-    .header-right .connection{display:none}
-    .header-right .quiet-button{width:44px;padding:0;border:0;background:transparent}
-    .header-right .quiet-button span{display:none}
-    .overview{grid-template-columns:1.35fr 1fr;gap:16px;padding:18px;margin-bottom:18px;border-radius:13px}
-    .overview>div+div{padding-left:16px}
-    .overview-value{font-size:25px}
-    .overview-state{font-size:18px}
-    .overview-state svg{display:none}
-    .overview-note{font-size:11px}
-    .overview .schedule-overview{display:none}
-    .overview .overline{font-size:11px;margin-bottom:6px}
-    .mobile-nav{display:flex;gap:6px;padding:4px;border:1px solid var(--line);border-radius:10px;margin-bottom:20px;background:#e7eee8}
-    .mobile-nav a{flex:1;display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:7px;font-size:12px;color:#536b5d}
-    .workspace{display:flex;flex-direction:column;gap:26px}
-    .aside{display:contents}
-    .controls{order:-1;width:100%}
-    .equipment{width:100%}
-    .schedule-card{width:100%}
-    .card{padding:20px;border-radius:13px}
-    .controls .power{margin:16px 0 17px;height:46px}
-    .controls .temp-title{padding-top:14px;border-top:1px solid var(--line)}
-    .controls .temp-control{margin:12px 0}
-    .controls .big-temp{font-size:43px}
-    .controls .temp-hint{margin-top:9px}
-    .controls .card-head h2{font-size:16px}
-    .scope{font-size:11px}
-    .section-head{margin-bottom:12px}
-    .section-head h2{font-size:16px}
-    .unitGrid{gap:10px;grid-template-columns:1fr}
-    .unitColumn{gap:10px}
-    .unit summary{min-height:90px;padding:15px;gap:11px}
-    .unitIcon{width:35px;height:35px;border-radius:9px}
-    .unitInfo h3{font-size:14px}
-    .unitCode{font-size:9px}
-    .unitMeta{font-size:10px;margin-top:2px}
-    .unitBadge strong{font-size:24px}
-    .chevron{margin-left:2px}
-    .unitBody{padding:0 15px 15px}
-    .unitBody select{font-size:16px}
-    .unitActions button{font-size:13px}
-    .bottom-note{margin-top:16px}
-    .diagnostics{width:100%;padding:0 2px;margin-top:-12px}
-    .schedule-times{margin-top:20px}
-    .footer{margin-top:24px;font-size:10px}
-    .footer span:last-child{display:none}
-    }
-    @media(max-width:640px){.shell{padding-top:16px}
-    .masthead{margin-bottom:16px}
-    .overview{padding:14px;margin-bottom:12px;align-items:center}
-    .overview-value{line-height:1.2}
-    .overview .overline{margin-bottom:4px}
-    .overview>div:first-child .overline,.overview>div:nth-child(2) .overview-note{display:none}
-    .overview-note{line-height:1.4;margin-top:4px}
-    .mobile-nav{padding:0;border:0;background:transparent;margin-bottom:14px;gap:0;border-bottom:1px solid var(--line);border-radius:0}
-    .mobile-nav a{min-height:38px;border-radius:0}
-    .controls{padding:18px}
-    .controls .scope{margin-top:4px}
-    .controls .power{height:44px;margin:12px 0 13px}
-    .controls .temp-title{padding-top:12px}
-    .controls .temp-control{margin:10px 0}
-    .controls .big-temp{font-size:40px}
-    .controls .temp-hint{margin-top:8px}
-    }
-    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}
-    .chevron{transition:none}
-    }
-    h1{font-size:24px;overflow-wrap:anywhere}
-    .identity>div:last-child{min-width:0}
-    .identity{min-width:0}
-    .header-right{flex-shrink:0}
-    .big-temp{display:flex;align-items:center;justify-content:center;gap:2px}
-    .big-temp select{appearance:none;-webkit-appearance:none;width:78px;min-width:0;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ink);text-align:center;text-align-last:center;font:inherit;letter-spacing:inherit;cursor:pointer}
-    .big-temp select:disabled{cursor:default}
-    .unitMeta{white-space:nowrap}
     .unitName{overflow-wrap:anywhere}
-    .unitBody label select{display:block;margin-top:8px}
-    .unitGrid[data-stale=true]{opacity:.55}
-    .unit[data-on=unknown]{border-color:#e5d7b6;border-left-color:#bd8b30;background:#fffbf2}
-    .unit[data-on=unknown] .unitMeta{color:#8a5c13;background:#fff0cb}
-    .overview[data-state=unknown] .overview-state span{background:#fff0cb;color:#8a5c13}
-    .overview[data-state=error] .overview-state span{background:#fbe6e4;color:#a43730}
-    .overview[data-state=loading] .overview-state span{background:#edf1ef;color:var(--muted)}
-    .feedback{position:sticky;top:12px;z-index:3;margin:-8px 0 24px;padding:13px 16px;border:1px solid #b9d7c4;border-radius:10px;background:#e6f3eb;color:#1a6941;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
-    .feedback:empty{display:none}
-    .feedback[data-kind=error]{border-color:#e7b6b1;background:#fceceb;color:#a43730}
-    .feedback[data-kind=busy]{border-color:#e4d29e;background:#fff7df;color:#80601c}
-    .feedback[data-kind=busy]::before{content:"";display:inline-block;vertical-align:middle;width:12px;height:12px;margin-right:9px;border:2px solid #d6c18c;border-top-color:#80601c;border-radius:50%;animation:spin 1s linear infinite}
-    .tag[data-state=off]{color:#416888;background:#e4edf7}
-    .tag[data-state=error],.overview-note[data-state=error]{color:#a43730}
-    .tag[data-state=error]{background:#fbe6e4}
-    .tag[data-state=loading]{color:var(--muted);background:#edf1ef}
-    .overview-note[data-state=on]{color:#1a6941}
-    .overview-note[data-state=off]{color:#416888}
-    .schedule-detail{color:#a43730;font-size:12px;overflow-wrap:anywhere}
-    .schedule-detail:empty{display:none}
-    #scheduleTimes{font-size:23px;letter-spacing:-1px}
-    .schedule-edit[open] .chevron{transform:rotate(180deg)}
-    @keyframes spin{to{transform:rotate(360deg)}
-    }
-    @media(max-width:1000px) and (min-width:641px){.workspace{grid-template-columns:1fr}
-    .aside{grid-template-columns:1fr 1fr}
-    .diagnostics{grid-column:1 / -1}
-    }
-    @media(min-width:641px){.unit{position:relative;overflow:visible}
+    .unitMeta{font-size:13px;margin-top:5px;color:var(--off)}
+    .unit[data-on=true] .unitMeta{color:var(--green)}
+    .unit[data-on=unknown] .unitMeta{color:#946116}
+    .unitBadge{white-space:nowrap;font-size:13px}
+    .unitBadge strong{font-size:24px;font-weight:500}
+    .chevron{width:15px;height:15px;color:#8a949a}
+    .unit[open] .chevron,.schedule-edit[open] .chevron{transform:rotate(180deg)}
     .unit[open]{z-index:2}
-    .unit[open] summary{border-radius:12px 12px 0 0}
-    .unitBody{position:absolute;left:-1px;right:-1px;top:calc(100% - 1px);z-index:2;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:white;box-shadow:0 12px 20px #1d34311c}
-    }
-    @media(max-width:640px){h1{font-size:19px;line-height:1.35}
-    .identity>div:last-child{max-width:245px}
-    .shell{padding-top:20px}
-    .unitGrid{grid-template-columns:1fr}
-    .aside{display:contents}
-    .unitBody select{font-size:16px}
-    .unitActions button{min-height:44px}
-    .overview>div:nth-child(2) .overview-note{display:block;font-size:10px;overflow-wrap:anywhere}
-    .feedback{margin:0 0 14px;padding:10px 12px;font-size:12px}
-    .overview-state span{font-size:16px;padding:5px 8px;gap:6px}
-    .overview-state span::before{width:6px;height:6px}
-    .overview-value{font-size:24px}
-    .temp-title{gap:6px}
-    .temp-title span{font-size:11px}
-    .unitCode{font-size:10px}
-    .unitActions{flex-wrap:wrap}
-    .big-temp select{width:65px}
-    }
-    @media(prefers-reduced-motion:reduce){.feedback[data-kind=busy]::before{animation:none}
+    .unitBody{padding:0 16px 16px;border-top:1px solid var(--line);background:#fff}
+    .unitBody label{display:block;font-size:13px;margin-top:14px;color:var(--muted)}
+    .unitBody select{display:block;width:100%;height:44px;margin-top:8px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+    .unitActions{display:flex;gap:8px;margin-top:12px}
+    .unitActions button{flex:1;padding:0 8px;font-size:13px}
+    .unit[data-on=false] .unitToggle{color:var(--green)}
+    .unit[data-on=true] .unitToggle{color:var(--off)}
+    .unitGrid[data-stale=true]{opacity:.5}
+    .aside{display:grid;gap:18px}
+    .card{border:1px solid var(--line);border-radius:8px;background:#fff;padding:20px}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .power{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;margin:18px 0 20px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:#fff;font-weight:500}
+    .power:hover{background:#1c603c}
+    .power.is-on{background:#fff;color:var(--ink);border-color:#cbd3d9}
+    .power.is-on:hover{background:#f4f6f7}
+    .temp-title{font-size:13px;color:var(--muted)}
+    .temp-control{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;margin:10px 0 14px}
+    .step{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:24px}
+    .big-temp{display:flex;align-items:center;justify-content:center;gap:3px;font-size:40px;line-height:1.2}
+    .big-temp select{appearance:none;-webkit-appearance:none;width:65px;min-width:0;padding:0;border:0;border-radius:4px;background:transparent;color:var(--ink);text-align:center;text-align-last:center;font:inherit;cursor:pointer}
+    .big-temp small{font-size:17px;font-weight:400}
+    .apply{width:100%;min-height:44px;border:1px solid #cbd3d9;border-radius:6px;background:#fff;color:var(--ink);font-weight:500}
+    .apply:hover:not(:disabled){background:#f4f6f7}
+    .tag{font-size:13px;color:var(--green);white-space:nowrap}
+    .tag[data-state=off]{color:var(--muted)}
+    .tag[data-state=error]{color:#af3b35}
+    .tag[data-state=loading]{color:var(--muted)}
+    .schedule-times{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+    .schedule-time strong{display:block;font-size:26px;font-weight:500}
+    .schedule-time span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .schedule-edit{border-top:1px solid var(--line);padding-top:4px}
+    .schedule-edit summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;list-style:none;cursor:pointer;font-size:13px}
+    .schedule-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 14px}
+    .schedule-fields label{font-size:13px;color:var(--muted)}
+    input[type=time]{width:100%;height:44px;margin-top:6px;padding:0 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+    .schedule-detail{color:#af3b35;font-size:13px;overflow-wrap:anywhere}
+    .schedule-detail:empty{display:none}
+    .diagnostics{justify-self:end;display:flex;align-items:center;gap:6px;min-height:44px;color:var(--muted);font-size:13px}
+    .diagnostics svg{width:16px;height:16px}
+    .feedback{position:sticky;top:12px;z-index:3;margin:-12px 0 20px;padding:12px 16px;border:1px solid #bdd4c4;border-radius:6px;background:#edf6ef;color:#24633e;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+    .feedback:empty{display:none}
+    .feedback[data-kind=error]{border-color:#e3b6b2;background:#fff0ef;color:#af3b35}
+    .feedback[data-kind=busy]{border-color:#e3d0a4;background:#fff8e9;color:#886118}
+    @media(min-width:641px){.unitBody{position:absolute;left:-3px;right:-1px;top:calc(100% - 1px);border:1px solid var(--line);border-radius:0 0 8px 8px;box-shadow:0 8px 14px #26323814}}
+    @media(max-width:1000px) and (min-width:641px){.workspace{grid-template-columns:1fr}.aside{grid-template-columns:1fr 1fr}.diagnostics{grid-column:1 / -1}}
+    @media(max-width:640px){
+      .shell{width:calc(100% - 32px);padding:20px 0}
+      .masthead{gap:12px;margin-bottom:18px}
+      h1{font-size:19px;line-height:1.4}
+      .header-right .connection,.header-right button span{display:none}
+      .header-right button{width:44px;padding:0}
+      .overview{gap:12px;padding:14px 16px;margin-bottom:20px;align-items:center}
+      .overview-status{display:block}
+      .overview-state{font-size:16px;gap:7px}
+      .state-count{display:block;margin-top:3px;font-size:12px}
+      .overview-temperature{gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:104px}
+      .overview-temperature label{width:100%;text-align:right;font-size:12px}
+      .overview-temperature strong{font-size:24px;line-height:1.2}
+      .workspace{display:flex;flex-direction:column;gap:24px}
+      .aside{display:contents}
+      .controls{order:-1;width:100%}
+      .equipment,.schedule-card{width:100%}
+      .card{padding:18px}
+      .controls .power{margin:14px 0 16px}
+      .unitGrid{grid-template-columns:1fr;gap:10px}
+      .unitColumn{gap:10px}
+      .unit summary{min-height:80px;padding:13px 16px}
+      .unitMeta{margin-top:3px}
+      .unitBody select,input[type=time]{font-size:16px}
+      .feedback{margin:-6px 0 16px;padding:10px 12px}
+      .diagnostics{align-self:flex-end;margin-top:-12px}
     }
   </style>
 </head>
 <body>
 <svg class="svg-library" aria-hidden="true"><defs>
-  <symbol id="wind" viewBox="0 0 24 24"><path d="M3 8h12a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h5a3 3 0 1 1-3 3"/></symbol>
-  <symbol id="power" viewBox="0 0 24 24"><path d="M12 3v9M6.3 5.7a8 8 0 1 0 11.4 0"/></symbol>
   <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6M4 13a8 8 0 0 0 14 5l3-3m0 6v-6h-6"/></symbol>
   <symbol id="down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
-  <symbol id="shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6"/></symbol>
   <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h16m-5-5 5 5-5 5"/></symbol>
 </defs></svg>
 <main class="shell">
   <header class="masthead">
-    <div class="identity"><div class="brand"><svg aria-hidden="true"><use href="#wind"/></svg></div><div><div class="eyebrow">空调设备控制</div><h1>${xml(panelTitle)}</h1></div></div>
-    <div class="header-right"><span class="connection" id="lastUpdated">等待读取</span><button class="quiet-button" id="refreshStatus" type="button" aria-label="刷新设备状态"><svg aria-hidden="true"><use href="#refresh"/></svg><span>刷新状态</span></button></div>
+    <h1>${xml(panelTitle)}</h1>
+    <div class="header-right"><span class="connection" id="lastUpdated">等待读取</span><button class="quiet-button" id="refreshStatus" type="button" aria-label="刷新设备状态"><svg aria-hidden="true"><use href="#refresh"/></svg><span>刷新</span></button></div>
   </header>
   <section class="overview" id="overview" data-state="loading" aria-label="空调概览">
-    <div><div class="overline">当前状态</div><div class="overview-value overview-state"><span id="stateSummary">正在读取</span></div><div class="overview-note" id="stateCount">— / — 台开启</div></div>
-    <div><div class="overline">统一设定温度</div><div class="overview-value"><span class="numeric" id="currentTemperature">—</span><small>°C</small></div><div class="overview-note" id="stateHint">正在读取设备状态…</div></div>
-    <div class="schedule-overview"><div class="overline">自动定时</div><div class="overview-value"><span class="numeric" id="scheduleTimes">— → —</span></div><div class="overview-note" id="scheduleSummary">正在读取定时…</div></div>
+    <div class="overview-status"><div class="overview-state" id="stateSummary">正在读取</div><span class="state-count" id="stateCount">— / — 台开启</span></div>
+    <div class="overview-temperature"><label>统一设定</label><strong class="numeric" id="currentTemperature">—</strong><small>°C</small></div>
   </section>
   <div id="status" class="feedback" role="status" aria-live="polite"></div>
-  <nav class="mobile-nav" aria-label="页面导航"><a href="#control">总控</a><a href="#equipment" id="deviceNav">设备</a><a href="#schedule">定时</a></nav>
   <div class="workspace">
     <section class="equipment" id="equipment">
-      <div class="section-head"><h2>单台设备</h2><div class="legend" aria-label="状态颜色说明"><span class="legend-item legend-on">已开启</span><span class="legend-item legend-off">已关闭</span></div></div><div class="position-note">按现有空间位置排列 · 点开设备调节</div>
+      <div class="section-head"><h2>单台空调</h2></div>
       <div class="unitGrid" id="unitGrid" aria-label="单台空调位置布局"></div>
-      <div class="bottom-note"><svg aria-hidden="true"><use href="#shield"/></svg>温度为设备设定值，不代表室内实测温度</div>
     </section>
     <aside class="aside">
       <section class="card controls" id="control">
-        <div class="card-head"><h2>统一控制</h2><span class="tag" id="controlScope">全部设备</span></div><div class="scope">统一开关和温度对全部设备生效</div>
+        <h2>全部空调</h2>
         <button class="power" id="powerToggle" type="button" disabled>等待读取设备状态</button>
-        <div class="temp-title"><label for="temperature">设定温度</label><span id="draftState">等待读取</span></div>
+        <div class="temp-title"><label for="temperature">设定温度</label></div>
         <div class="temp-control"><button class="step" id="tempMinus" type="button" aria-label="降低设定温度" disabled>−</button><div class="big-temp"><select id="temperature" aria-label="全部设备设定温度" disabled><option value="" selected>—</option>${Array.from({ length: 13 }, (_, index) => `<option value="${index + 18}">${index + 18}</option>`).join("")}</select><small>°C</small></div><button class="step" id="tempPlus" type="button" aria-label="提高设定温度" disabled>+</button></div>
-        <button class="apply" id="tempSet" type="button" disabled>应用到全部设备</button><p class="temp-hint">调整后点击应用，核实设备状态后显示结果。</p>
+        <button class="apply" id="tempSet" type="button" disabled>应用温度</button>
       </section>
       <section class="card schedule-card schedule" id="schedule">
         <div class="card-head"><h2>自动定时</h2><span class="tag" id="scheduleStatus" data-state="loading">读取中</span></div>
-        <div class="schedule-times"><div class="schedule-time"><strong class="numeric" id="scheduleOnTime">—</strong><span>自动开启</span></div><div class="schedule-line"></div><div class="schedule-time"><strong class="numeric" id="scheduleOffTime">—</strong><span>自动关闭</span></div></div>
-        <p class="schedule-rule">开启：仅工作日，周末及法定节假日跳过<br>关闭：每天按时执行</p><p id="scheduleDetail" class="schedule-detail"></p>
+        <div class="schedule-times"><div class="schedule-time"><strong class="numeric" id="scheduleOnTime">—</strong><span>工作日开启</span></div><div class="schedule-time"><strong class="numeric" id="scheduleOffTime">—</strong><span>每天关闭</span></div></div>
+        <p id="scheduleDetail" class="schedule-detail"></p>
         <details class="schedule-edit"><summary>修改定时<svg class="chevron" aria-hidden="true"><use href="#down"/></svg></summary><div class="schedule-fields"><label>开启时间<input id="scheduleOn" type="time" disabled></label><label>关闭时间<input id="scheduleOff" type="time" disabled></label></div><button class="apply" id="scheduleSave" type="button" disabled>保存时间</button><div class="unitActions"><button class="quiet-button" id="scheduleToggle" type="button" disabled>等待读取定时</button></div></details>
       </section>
-      <a class="diagnostics" href="/doctor"><span><svg aria-hidden="true"><use href="#shield"/></svg>系统诊断</span><svg aria-hidden="true"><use href="#arrow"/></svg></a>
+      <a class="diagnostics" href="/doctor">系统诊断<svg aria-hidden="true"><use href="#arrow"/></svg></a>
     </aside>
   </div>
-  <footer class="footer"><span>设备状态以最近一次核实结果为准</span><span>开启仅工作日执行 · 关闭每天执行</span></footer>
 </main>
   <script>
     const status = document.querySelector("#status");
@@ -584,8 +429,6 @@ function html() {
       document.querySelector("#tempSet").disabled = controlBusy || !acReady || !Number.isFinite(target) || same;
       document.querySelector("#tempMinus").disabled = controlBusy || !acReady || !Number.isFinite(target) || target <= 18;
       document.querySelector("#tempPlus").disabled = controlBusy || !acReady || !Number.isFinite(target) || target >= 30;
-      document.querySelector("#draftState").textContent = !acReady ? "等待读取" : same ? "与设备设定一致"
-        : Number.parseFloat(acState.temperature) === target ? "可统一各台温度" : "已调整 · 待应用";
       [scheduleOn, scheduleOff, scheduleToggle, document.querySelector("#scheduleSave")]
         .forEach((control) => control.disabled = controlBusy || !scheduleState);
       unitGrid.querySelectorAll(".unitControls").forEach((controls) => {
@@ -614,10 +457,7 @@ function html() {
       stateSummary.textContent = state === "off" ? "全部已关闭" : state === "on" ? "全部已开启" : state === "mixed" ? "部分已开启" : "状态待确认";
       document.querySelector("#stateCount").textContent = data.activeUnits + " / " + data.totalUnits + " 台开启";
       document.querySelector("#currentTemperature").textContent = Number.isFinite(Number.parseFloat(data.temperature)) ? String(Number.parseFloat(data.temperature)) : "—";
-      document.querySelector("#stateHint").textContent = "当前模式：" + data.mode;
       document.querySelector("#lastUpdated").textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
-      document.querySelector("#controlScope").textContent = "全部 " + data.totalUnits + " 台";
-      document.querySelector("#deviceNav").textContent = "设备 · " + data.totalUnits;
       unitGrid.dataset.stale = "false";
       powerToggle.textContent = data.closed ? "开启全部空调" : "关闭全部空调";
       powerToggle.dataset.action = data.closed ? "on" : "off";
@@ -637,10 +477,9 @@ function html() {
         const label = shortName ? shortName[1] + " 号空调" : unit.name;
         const options = (temp ? "" : '<option value="" selected>未读取</option>') + temps.map((item) => '<option value="' + item + '"' + (item === temp ? " selected" : "") + '>' + item + ' °C</option>').join("");
         return '<details class="unit ' + unitClass + '" data-unit="' + escapeHtml(unit.name) + '" data-on="' + unitState + '"' + (openUnits.has(unit.name) ? " open" : "") + '>' +
-          '<summary><div class="unitIcon"><svg aria-hidden="true"><use href="#wind"/></svg></div>' +
-          '<div class="unitInfo"><h3 class="unitName">' + escapeHtml(label) + '</h3><div class="unitCode">' + escapeHtml(unit.name) + '</div>' +
+          '<summary><div class="unitInfo"><h3 class="unitName">' + escapeHtml(label) + '</h3>' +
           '<div class="unitMeta">' + (unit.off ? "已关闭" : unit.on ? "已开启" : "待确认") + '</div></div>' +
-          '<div class="unitBadge"><strong class="numeric">' + (Number.isFinite(numericTemp) ? numericTemp : "—") + '</strong><small>°C</small></div>' +
+          '<div class="unitBadge" aria-label="设定温度 ' + (Number.isFinite(numericTemp) ? numericTemp + ' °C' : '未读取') + '"><strong class="numeric">' + (Number.isFinite(numericTemp) ? numericTemp : "—") + '</strong> °C</div>' +
           '<svg class="chevron" aria-hidden="true"><use href="#down"/></svg></summary>' +
           '<div class="unitBody unitControls" data-unit="' + escapeHtml(unit.name) + '">' +
           '<label>单台设定温度<select class="unitTemp" aria-label="' + escapeHtml(unit.name) + ' 设定温度">' + options + '</select></label>' +
@@ -660,12 +499,8 @@ function html() {
       const state = data.state || (data.enabled ? "running" : "disabled");
       scheduleStatus.textContent = state === "running" ? "已启用" : state === "error" ? "异常" : "已暂停";
       scheduleStatus.dataset.state = state === "running" ? "on" : state === "error" ? "error" : "off";
-      document.querySelector("#scheduleTimes").textContent = data.on + " → " + data.off;
       document.querySelector("#scheduleOnTime").textContent = data.on;
       document.querySelector("#scheduleOffTime").textContent = data.off;
-      const summary = document.querySelector("#scheduleSummary");
-      summary.textContent = state === "running" ? "已启用 · 工作日自动开启" : state === "error" ? "定时状态异常" : "已暂停自动定时";
-      summary.dataset.state = scheduleStatus.dataset.state;
       scheduleToggle.textContent = data.enabled ? "暂停自动定时" : "启用自动定时";
       scheduleToggle.dataset.enabled = String(state === "running");
       document.querySelector("#scheduleDetail").textContent = state === "error" ? "定时任务状态异常，请打开系统诊断检查。" : "";
@@ -685,8 +520,6 @@ function html() {
         scheduleState = null;
         scheduleStatus.textContent = "读取失败";
         scheduleStatus.dataset.state = "error";
-        document.querySelector("#scheduleSummary").textContent = "定时状态读取失败";
-        document.querySelector("#scheduleSummary").dataset.state = "error";
         reportStatus(error.name === "AbortError" ? "定时读取超时，请刷新重试" : error.message, "error");
         syncControls();
         return null;
@@ -701,7 +534,7 @@ function html() {
         acReady = false;
         overview.dataset.state = "loading";
         stateSummary.textContent = "正在读取";
-        document.querySelector("#stateHint").textContent = "正在读取设备状态…";
+        document.querySelector("#stateCount").textContent = "正在读取…";
         syncControls();
       }
       const controller = new AbortController();
@@ -719,7 +552,7 @@ function html() {
         overview.dataset.state = "error";
         stateSummary.textContent = "读取失败";
         unitGrid.dataset.stale = "true";
-        document.querySelector("#stateHint").textContent = acState ? "以下为上次读取的状态，请刷新确认" : "请刷新重试";
+        document.querySelector("#stateCount").textContent = acState ? "上次读取：" + acState.activeUnits + " / " + acState.totalUnits + " 台开启" : "请刷新重试";
         reportStatus(error.name === "AbortError" ? "状态读取超时，请刷新重试" : error.message, "error");
         syncControls();
         return null;

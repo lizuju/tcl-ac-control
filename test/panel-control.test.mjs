@@ -142,7 +142,6 @@ test("applying a shared setpoint remains available when an individual device dif
   const ui = frontend(async () => {});
   ui.run(`renderAcStatus(${JSON.stringify(data)})`);
   assert.equal(ui.elements.get("#tempSet").disabled, false);
-  assert.equal(ui.elements.get("#draftState").textContent, "可统一各台温度");
 });
 
 test("schedule operations block competing controls and restore the saved schedule", async () => {
